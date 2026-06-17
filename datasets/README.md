@@ -16,7 +16,10 @@ datasets/
 ├── coco/                 # 라벨링 결과 (COCO format) — 라벨링 단계에서 채움
 │   ├── images/
 │   └── annotations/{train,val,test}.json
-└── manifest.csv          # 출처·split·라벨상태 SOT
+├── manifest.csv          # 출처·split·라벨상태 SOT (추적)
+├── source_metadata.csv   # 크롤 출처 기록 — query/URL/날짜 (설계서 §6, 추적)
+├── crawl_queries.json    # hard-case 검색어 큐 (설계서 §8, 추적)
+└── staging/              # 크롤 후보 작업장 (선별 전, git 미추적)
 ```
 
 ## manifest.csv 컬럼
@@ -28,7 +31,7 @@ datasets/
 | `clip_id` | 운영 영상 출처 (크롤링은 빈칸) | 영상단위 split |
 | `split` | train / val / test | 학습 분배 (**test = 운영만**) |
 | `labeled` | yes / no | 라벨링 추적 |
-| `domain` | day / ir_night / closeup / distant | hard case 추적 (recall 약점 분석) |
+| `domain` | ir_night / occluded / ir_night_occluded / negative / day_other | hard case 추적 (설계서 §7 로 통일 — 옛 day/closeup/distant 폐기) |
 
 ## 데이터 인입 — 새 이미지 추가 시 (SOP)
 
@@ -45,6 +48,37 @@ datasets/
 - 운영 프레임은 반드시 `operational/<clip_id>/` 영상단위 (train/test split 누수 방지).
 - **test split 은 운영 영상만** — 크롤링(주간 클로즈업)으로 평가하면 운영 성능이 깜깜이.
 - 중복 이미지 주의 (같은 걸 여러 번 크롤링). dedup 은 추후 해시 기반.
+
+## Google hard-case 수집 (SerpApi) — 반자동 SOP
+
+> 설계: `docs/GOOGLE_HARDCASE_CRAWLING_DESIGN.md`. 예쁜 사진이 아니라 **운영 false
+> negative 를 닮은 hard case**(야간 IR · 가림 · 야간+가림)를 사람이 골라 넣는다.
+> 크롤러는 후보만 떠오고 채택은 사람이 한다(§9.1·§15 — 자동 대량적재 아님).
+>
+> 메커니즘: **SerpApi google_images**. (Google Custom Search JSON API 는 2025 신규
+> 마감 · 2027.1.1 종료라 신규 발급 불가 → SerpApi 무료티어 250검색/월로 대체.)
+
+```
+1. 검색어 큐 확인/수정      datasets/crawl_queries.json (§8.1~8.3, negative 제외)
+2. (계획만) dry-run         uv run python scripts/fetch_hardcase_images.py --dry-run
+3. SerpApi 키 설정          .env 에 SERPAPI_KEY=...  (gitignore 됨 / serpapi.com 무료가입)
+4. 후보 수집 → staging/     uv run python scripts/fetch_hardcase_images.py --pages 1 --resume
+5. [사람] 육안 선별         staging/<domain>/ 에서 나쁜 후보(잘못된 동물·그림·상품·중복) 삭제
+6. raw 로 승격              uv run python scripts/promote_staging.py   (→ source_metadata.csv 기록)
+7. manifest 갱신            uv run python scripts/build_manifest.py
+8. domain/split/labeled     manifest.csv 에서 채움 (domain 은 source_metadata.notes 의 domain_hint 참고)
+9. 무결성 가드              uv run python scripts/check_dataset.py   (test=운영만 · domain · 출처기록률)
+```
+
+**쿼터 산수:** 큐 23개 × `--pages 1` = SerpApi 23회/실행 → 무료 250/월 = 약 10회 실행분.
+`--pages` 를 올리면 비례 증가. 스모크는 `--limit 5` 로 소량만.
+
+**negative(게코 없음)** 는 SerpApi 가 아니라 **운영 프레임에서** 뽑는다(§4.1·§8.4):
+`extract_operational_frames.py` 로 추출 → `raw/negative/` 로 분류. (부득이할 때만
+`crawl_queries.json` 의 `_negative_reference` 를 수동 참고.)
+
+**재개:** 인터넷이 끊겨도 매 다운로드가 `staging_metadata.csv` 에, 매 페이지가
+`.fetch_progress.json` 에 저장된다. `--resume` 면 쿼리별 `last_page+1` 부터 이어받음.
 
 ## 현재 통계 (2026-06-17)
 

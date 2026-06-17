@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "opencv-python-headless>=4.13.0.92",
+    "requests>=2.32",
     "rfdetr>=1.8.0",
 ]
 

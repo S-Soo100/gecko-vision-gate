@@ -1,0 +1,47 @@
+"""coco_import 순수 로직 테스트 — 외부 COCO → 우리 gecko 단일클래스 변환 규칙."""
+
+from gecko_vision_gate.coco_import import collect_gecko_images, gecko_category_ids
+
+
+def test_gecko_category_ids_case_insensitive_and_ignores_others():
+    cats = [
+        {"id": 0, "name": "Gecko"},
+        {"id": 1, "name": "towel"},
+        {"id": 2, "name": "leopard gecko"},
+        {"id": 3, "name": "objects-l6Lr"},
+    ]
+    assert gecko_category_ids(cats) == {0, 2}  # Gecko + leopard gecko, towel/objects 제외
+
+
+def test_collect_drops_nongecko_boxes_and_geckoless_images():
+    coco = {
+        "categories": [{"id": 1, "name": "gecko"}, {"id": 2, "name": "towel"}],
+        "images": [
+            {"id": 10, "file_name": "a.jpg", "width": 100, "height": 80},
+            {"id": 11, "file_name": "b.jpg", "width": 50, "height": 50},
+        ],
+        "annotations": [
+            {"id": 1, "image_id": 10, "category_id": 1, "bbox": [1, 2, 3, 4]},   # gecko
+            {"id": 2, "image_id": 10, "category_id": 2, "bbox": [5, 5, 5, 5]},   # towel → 버림
+            {"id": 3, "image_id": 11, "category_id": 2, "bbox": [0, 0, 1, 1]},   # b.jpg gecko 없음 → 제외
+        ],
+    }
+    gids = gecko_category_ids(coco["categories"])
+    imgs = collect_gecko_images(coco, gids)
+    assert len(imgs) == 1
+    assert imgs[0].file_name == "a.jpg"
+    assert imgs[0].boxes == [[1, 2, 3, 4]]   # towel 박스 빠짐
+    assert (imgs[0].width, imgs[0].height) == (100, 80)
+
+
+def test_single_class_keeps_all_boxes():
+    coco = {
+        "categories": [{"id": 0, "name": "gecko"}],
+        "images": [{"id": 1, "file_name": "x.jpg", "width": 10, "height": 10}],
+        "annotations": [
+            {"id": 1, "image_id": 1, "category_id": 0, "bbox": [0, 0, 5, 5]},
+            {"id": 2, "image_id": 1, "category_id": 0, "bbox": [5, 5, 5, 5]},
+        ],
+    }
+    imgs = collect_gecko_images(coco, gecko_category_ids(coco["categories"]))
+    assert len(imgs) == 1 and len(imgs[0].boxes) == 2

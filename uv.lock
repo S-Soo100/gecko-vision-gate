@@ -351,6 +351,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "opencv-python-headless" },
+    { name = "requests" },
     { name = "rfdetr" },
 ]
 
@@ -362,6 +363,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "opencv-python-headless", specifier = ">=4.13.0.92" },
+    { name = "requests", specifier = ">=2.32" },
     { name = "rfdetr", specifier = ">=1.8.0" },
 ]
 
