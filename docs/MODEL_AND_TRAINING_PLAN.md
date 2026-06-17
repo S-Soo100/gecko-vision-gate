@@ -503,12 +503,17 @@ R2에서 mp4 다운로드
 
 ## 8. 다음 액션
 
+> **진행 현황 (2026-06-17)** — 데이터/스크립트 상세는 `datasets/README.md`.
+
 ```text
-1. RF-DETR core 설치/예제 inference 검증
-2. 운영 영상 30~50개에서 프레임 추출
-3. gecko bbox 라벨링 시작
-4. no-gecko negative 프레임 수집
-5. 작은 PoC fine-tuning
-6. false negative 중심 평가
-7. JSON contract 확정
+1. RF-DETR core 설치/예제 inference 검증        ✓ (Phase 0)
+2. 운영 영상에서 프레임 추출                     ✓ 32 clip / 185 프레임
+3. gecko bbox 라벨링 시작                        ✓ 운영 185 라벨(Label Studio) + 외부 Roboflow PD 1,430 base
+4. no-gecko negative 프레임 수집                 ◐ 운영 negative 25 (부분 — 확대 여지)
+5. 작은 PoC fine-tuning                          ◐ 스크립트 구축 + 스모크 검증, MPS 실학습 진행 중
+6. false negative 중심 평가                      ◔ test recall@threshold sweep (베이스라인 측정 예정)
+7. JSON contract 확정                            — (PROJECT_PLAN.md)
 ```
+
+후속: 베이스라인 → auto-label 루프(초안 모델로 미라벨 프레임 pre-label → 사람 검수 → 재학습),
+hard-case(야간/가림) 집중 라벨, fine-tune 가중치를 `prelabel` 에 연결.
