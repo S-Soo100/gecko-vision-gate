@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# uv.lock 은 커밋한다 (재현성) — 무시하지 않음
+
+# 모델 가중치 (자동 다운로드, 무거움)
+*.pth
+*.pt
+*.onnx
+checkpoints/
+weights/
+
+# 샘플 영상·검증 출력 (무거움 / 산출물)
+samples/clips/*.mp4
+samples/clips/*.mov
+samples/outputs/*.json
+
+# 환경변수 (Phase 3 Supabase/R2)
+.env
+
+# OS / 에디터
+.DS_Store

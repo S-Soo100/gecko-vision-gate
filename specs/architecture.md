@@ -161,13 +161,23 @@ CREATE INDEX idx_prelabels_clip ON clip_prelabels(clip_id);
 
 | Phase | 내용 | 완료 조건 |
 |---|---|---|
-| **0** | RF-DETR core 설치 + 로컬 mp4 1개 inference 검증 | `prelabel.py --input clip.mp4 --output x.json` 동작 |
+| **0** ✅ | RF-DETR core 설치 + 로컬 mp4 1개 inference 검증 | **완료 (2026-06-17)** — 아래 결과 |
 | **1** | seed 라벨(100~200 bbox) + fine-tune PoC | gecko detector 추론 가능 |
 | **2** | 영상단위 JSON + 평가(recall/FN) | test셋 recall 측정 + threshold 도출 |
 | **3** | **폴링 worker** (Supabase/R2 연동) | mac-mini에서 camera_clips 폴링 → clip_prelabels 적재 |
 | **4** | `camera_rois` 교차 → evidence baseline | ROI 체류 evidence 생성 (lab evidence spec과 페어) |
 
 > Phase 0~2 = detector 만들기 (로컬). Phase 3 = 상시 운영화. Phase 4 = evidence 본격화.
+
+### Phase 0 결과 (2026-06-17) ✅
+
+- **골격**: uv(`pyproject.toml`, Python 3.12) + src layout `src/gecko_vision_gate/{schema,frame_sampling,detector,prelabel}.py`. 의존성 `rfdetr 1.8.0` + `opencv-python-headless`. 유닛테스트 7 passed (`tests/`, 순수 로직 — 인덱스 균등분할 + JSON 계약).
+- **검증**: 로컬 mp4 2개 prelabel 동작 확인 (seed = petcam-lab `storage/dataset-203/`).
+  - hand_feeding 클립 → 게코를 COCO 모델이 **`bird`로 오탐** (conf 0.5~0.88, 8/12 프레임).
+  - 게코 클립 → 물그릇을 **`cup`** 1건. 둘 다 `gecko_visible=false` (계약대로).
+- **결론**: 파이프라인(프레임 균등샘플 → RF-DETR 추론 → best frame → JSON 계약)은 동작. COCO pretrained(80 class, gecko 없음)는 게코를 못 잡음 → **Phase 1 fine-tune 필요성 실증.** `model_version="v0-coco"`로 fine-tune 전임을 명시.
+- **메모**: rfdetr 1.8.0 Nano 가중치 로드 시 `_kp_active_mask not in checkpoint`(keypoint 헤드 random init) 경고 — detection 출력은 정상(bird/cup 합리적 오탐)이라 무관. Phase 1 fine-tune 시 재확인.
+- **CLI**: `uv run python -m gecko_vision_gate.prelabel --input clip.mp4 --output out.json [--frames 12 --threshold 0.5 --model-size nano]`
 
 ---
 

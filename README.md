@@ -35,3 +35,22 @@ R2 event clip
 
 - [PROJECT_PLAN.md](PROJECT_PLAN.md) — 전체 기획, JSON 계약, 평가 기준, 백엔드 통합 요청안
 - [docs/MODEL_AND_TRAINING_PLAN.md](docs/MODEL_AND_TRAINING_PLAN.md) — 모델 후보, 학습자료, 학습/평가 진행 순서
+- [specs/architecture.md](specs/architecture.md) — 확정 아키텍처 (상시 prelabeler) + 구현 Phase
+
+## 상태 (2026-06-17)
+
+**Phase 0 완료** — RF-DETR core 설치 + 로컬 mp4 prelabel 파이프라인 동작. 현재 `v0-coco`(COCO pretrained라 gecko 미검출 — fine-tune 전, `bird`/`cup`으로 오탐). 다음은 Phase 1 (seed 라벨링 → fine-tune).
+
+## 설치 & 실행
+
+```bash
+uv sync                       # 의존성 설치 (Python 3.12, rfdetr + opencv)
+
+# 단일 클립 prelabel → JSON 계약 출력
+uv run python -m gecko_vision_gate.prelabel \
+  --input path/to/clip.mp4 \
+  --output samples/outputs/clip.json
+# 옵션: --frames 12 --threshold 0.5 --model-size nano|small|medium
+
+uv run pytest                 # 유닛테스트
+```

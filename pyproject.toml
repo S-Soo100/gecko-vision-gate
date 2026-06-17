@@ -1,0 +1,25 @@
+[project]
+name = "gecko-vision-gate"
+version = "0.1.0"
+description = "RBA 파이프라인 Gate 레이어 — R2 영상 상시 자동 prelabeler (gecko detector + evidence)"
+readme = "README.md"
+authors = [
+    { name = "Seungsoo Baek", email = "bss.rol20@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "opencv-python-headless>=4.13.0.92",
+    "rfdetr>=1.8.0",
+]
+
+[project.scripts]
+gecko-prelabel = "gecko_vision_gate.prelabel:main"
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.0",
+]
