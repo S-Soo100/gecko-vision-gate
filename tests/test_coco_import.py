@@ -1,6 +1,13 @@
 """coco_import 순수 로직 테스트 — 외부 COCO → 우리 gecko 단일클래스 변환 규칙."""
 
-from gecko_vision_gate.coco_import import collect_gecko_images, gecko_category_ids
+from collections import Counter
+
+from gecko_vision_gate.coco_import import (
+    assign_clip_splits,
+    collect_gecko_images,
+    gecko_category_ids,
+    raw_rel_from_path,
+)
 
 
 def test_gecko_category_ids_case_insensitive_and_ignores_others():
@@ -45,3 +52,19 @@ def test_single_class_keeps_all_boxes():
     }
     imgs = collect_gecko_images(coco, gecko_category_ids(coco["categories"]))
     assert len(imgs) == 1 and len(imgs[0].boxes) == 2
+
+
+def test_raw_rel_from_path_extracts_operational_path():
+    p = "../../../../Users/baek/x/gecko-vision-gate/datasets/raw/operational/9af1ba2e/f000_t0.0.jpg"
+    assert raw_rel_from_path(p) == "operational/9af1ba2e/f000_t0.0.jpg"
+    assert raw_rel_from_path("/no/marker/here.jpg") is None
+
+
+def test_assign_clip_splits_no_leak_ratio_deterministic():
+    clips = [f"c{i}" for i in range(32)]
+    sp = assign_clip_splits(clips)
+    c = Counter(sp.values())
+    assert (c["train"], c["val"], c["test"]) == (22, 5, 5)  # 70/15/15 of 32
+    assert len(sp) == 32  # 모든 clip 정확히 한 split
+    assert assign_clip_splits(clips) == sp  # 결정적
+    assert assign_clip_splits([*clips, *clips]) == sp  # 중복 입력도 동일
