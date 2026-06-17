@@ -61,25 +61,35 @@ def materialize(build: Path, limit: int = 0) -> dict:
     return counts
 
 
-def eval_recall(model, conf: float) -> dict:
-    """test.json image-level recall(gate 지표) + false negative + neg 에서의 false positive."""
+GATE_THRESHOLDS = (0.1, 0.25, 0.5, 0.7)  # §7 게이트 threshold 후보
+
+
+def eval_recall(model, thresholds: tuple[float, ...] = GATE_THRESHOLDS) -> dict:
+    """test image-level recall(gate 지표)을 여러 confidence 임계값에서.
+
+    각 양성 이미지의 '게코 최고 confidence'를 모아 임계값별 recall/FN + 음성에서의 FP 를 낸다.
+    recall 우선 게이트라 단일 임계값이 아니라 trade-off 곡선을 본다(§7: 0.3/0.7 경계 결정용).
+    """
+    model.optimize_for_inference()  # 경고 해소 + 추론 일관성
     test = json.loads((ANN / "test.json").read_text(encoding="utf-8"))
     pos_ids = {a["image_id"] for a in test["annotations"]}
-    hits = fn = fp = n_neg = 0
+    floor = min(thresholds)
+    pos_conf: list[float] = []
+    neg_conf: list[float] = []
     for im in test["images"]:
-        has_det = len(model.predict(str(RAW / im["file_name"]), threshold=conf)) > 0
-        if im["id"] in pos_ids:
-            hits += has_det
-            fn += not has_det
-        else:
-            n_neg += 1
-            fp += has_det
-    n_pos = len(pos_ids)
-    return {
-        "test_positives": n_pos, "test_negatives": n_neg,
-        "recall": round(hits / n_pos, 4) if n_pos else None,
-        "false_negatives": fn, "false_positives_on_neg": fp, "conf": conf,
-    }
+        dets = model.predict(str(RAW / im["file_name"]), threshold=floor)
+        conf_arr = getattr(dets, "confidence", None)  # supervision Detections.confidence (ndarray|None)
+        mc = float(max(conf_arr)) if conf_arr is not None and len(conf_arr) else 0.0
+        (pos_conf if im["id"] in pos_ids else neg_conf).append(mc)
+    out: dict = {"test_positives": len(pos_conf), "test_negatives": len(neg_conf), "by_threshold": {}}
+    for t in thresholds:
+        hits = sum(1 for c in pos_conf if c >= t)
+        out["by_threshold"][f"{t}"] = {
+            "recall": round(hits / len(pos_conf), 4) if pos_conf else None,
+            "false_negatives": len(pos_conf) - hits,
+            "false_positives_on_neg": sum(1 for c in neg_conf if c >= t),
+        }
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -91,7 +101,6 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--output", default=str(ROOT / "runs" / "gecko_v0"))
     ap.add_argument("--dataset-dir", default=str(ROOT / "datasets" / "rfdetr_build"))
-    ap.add_argument("--conf", type=float, default=0.5, help="recall 평가 임계값")
     ap.add_argument("--early-stopping-patience", type=int, default=10)
     ap.add_argument("--accelerator", default=None, help="auto/cpu/mps/gpu (미지정=RF-DETR 자동)")
     ap.add_argument("--build-only", action="store_true", help="materialize+검증만 (학습 X)")
@@ -136,8 +145,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"train: model={args.model} {train_kwargs}")
     model.train(**train_kwargs)
 
-    metrics = eval_recall(model, args.conf)
-    print("=== test (image-level gate) ===")
+    metrics = eval_recall(model)
+    print("=== test (image-level gate, recall@threshold) ===")
     print(json.dumps(metrics, ensure_ascii=False, indent=2))
     Path(args.output).mkdir(parents=True, exist_ok=True)
     (Path(args.output) / "gate_metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
