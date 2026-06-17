@@ -20,6 +20,10 @@ samples/clips/*.mp4
 samples/clips/*.mov
 samples/outputs/*.json
 
+# 학습 데이터셋 — 이미지는 무거워서 git 추적 안 함 (manifest.csv/README/annotations 는 추적)
+datasets/raw/
+datasets/coco/images/
+
 # 환경변수 (Phase 3 Supabase/R2)
 .env
 
