@@ -37,7 +37,7 @@ R2 event clip
 - [docs/MODEL_AND_TRAINING_PLAN.md](docs/MODEL_AND_TRAINING_PLAN.md) — 모델 후보, 학습자료, 학습/평가 진행 순서
 - [specs/architecture.md](specs/architecture.md) — 확정 아키텍처 (상시 prelabeler) + 구현 Phase
 
-## 상태 (2026-06-17)
+## 상태 (2026-06-18)
 
 **Phase 1 진행 중** — 학습 데이터셋 + fine-tune 파이프라인 구축 완료.
 - 데이터: train **1,557**(외부 Roboflow PD 1,430 + 운영 127) · val 30 · **test 28(운영 전용)** COCO 완성. 상세 → [datasets/README.md](datasets/README.md).
