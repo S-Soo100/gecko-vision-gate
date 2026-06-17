@@ -5,10 +5,9 @@
 흐름: 프레임 균등 샘플 → 각 프레임 RF-DETR 추론 → target(gecko) 최고 conf 프레임을
 best_frame 으로 → JSON 계약 출력.
 
-Phase 0 주의: COCO pretrained 라 gecko 클래스가 없다. TARGET_CLASS="gecko" 로 두면
-gecko_visible 은 항상 false 가 나오는데, 이게 정상이다 — detected_objects 에는 실제
-검출된 COCO 객체(person 등)가 다 담겨 파이프라인 동작을 보여주고, gecko_visible=false
-는 fine-tune 전이라는 사실을 정직하게 드러낸다.
+--checkpoint 없이 실행하면 COCO pretrained 라 gecko 클래스가 없어 gecko_visible 은 항상
+false (파이프라인 sanity check 용). --checkpoint runs/.../checkpoint_best_total.pth 를 주면
+fine-tune 된 gecko detector 로 로드되어 실제 gecko_visible/bbox 를 낸다.
 """
 
 from __future__ import annotations
@@ -32,10 +31,11 @@ def prelabel_clip(
     num_frames: int = 12,
     threshold: float = 0.5,
     model_size: str = "nano",
+    checkpoint: str | None = None,
     clip_id: str | None = None,
 ) -> PrelabelResult:
     frames = sample_frames(video_path, num_frames)
-    detector = GeckoDetector(model_size=model_size, threshold=threshold)
+    detector = GeckoDetector(model_size=model_size, threshold=threshold, checkpoint=checkpoint)
 
     objects: list[DetectedObject] = []
     best: tuple[float, float, list[int]] | None = None  # (conf, ts, bbox) for TARGET
@@ -47,11 +47,12 @@ def prelabel_clip(
                 best = (d.confidence, ts, d.xywh)
 
     model_name = f"rf-detr-{model_size}"
+    model_version = MODEL_VERSION if checkpoint is None else f"v1-gecko ({Path(checkpoint).stem})"
     common = dict(
         detected_objects=tuple(objects),
         frames_sampled=len(frames),
         model_name=model_name,
-        model_version=MODEL_VERSION,
+        model_version=model_version,
         clip_id=clip_id,
     )
 
@@ -83,6 +84,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--frames", type=int, default=12, help="샘플링할 프레임 수")
     p.add_argument("--threshold", type=float, default=0.5, help="검출 confidence 임계값")
     p.add_argument("--model-size", default="nano", choices=list(("nano", "small", "medium")))
+    p.add_argument("--checkpoint", default=None, help="fine-tune .pth (주면 gecko 탐지, 없으면 COCO pretrained)")
     p.add_argument("--clip-id", default=None)
     args = p.parse_args(argv)
 
@@ -91,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         num_frames=args.frames,
         threshold=args.threshold,
         model_size=args.model_size,
+        checkpoint=args.checkpoint,
         clip_id=args.clip_id,
     )
     payload = json.dumps(result.to_dict(), indent=2, ensure_ascii=False)

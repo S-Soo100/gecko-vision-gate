@@ -510,8 +510,8 @@ R2에서 mp4 다운로드
 2. 운영 영상에서 프레임 추출                     ✓ 32 clip / 185 프레임
 3. gecko bbox 라벨링 시작                        ✓ 운영 185 라벨(Label Studio) + 외부 Roboflow PD 1,430 base
 4. no-gecko negative 프레임 수집                 ◐ 운영 negative 25 (부분 — 확대 여지)
-5. 작은 PoC fine-tuning                          ◐ 스크립트 구축 + 스모크 검증, MPS 실학습 진행 중
-6. false negative 중심 평가                      ◔ test recall@threshold sweep (베이스라인 측정 예정)
+5. 작은 PoC fine-tuning                          ✓ RFDETRNano MPS, best val mAP 0.82
+6. false negative 중심 평가                      ✓ test(28) recall@0.25=1.00 · mAP@50 0.90 (단 negative 0 → FP 미측정)
 7. JSON contract 확정                            — (PROJECT_PLAN.md)
 ```
 

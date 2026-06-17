@@ -28,6 +28,8 @@ datasets/staging/
 # RF-DETR 학습용 materialize 산출물(symlink) + 학습 출력(체크포인트·로그)
 datasets/rfdetr_build/
 runs/
+# auto-label 초안 COCO (모델 출력, 재생성 가능 — 검수 후 정식 라벨로)
+datasets/autolabel/
 
 # 환경변수 (Phase 3 Supabase/R2)
 .env

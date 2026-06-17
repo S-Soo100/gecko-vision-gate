@@ -64,19 +64,33 @@ class GeckoDetector:
     모델 1회 로드 후 재사용 (여러 프레임·여러 클립에 같은 인스턴스 사용).
     """
 
-    def __init__(self, model_size: str = "nano", threshold: float = 0.5):
+    def __init__(self, model_size: str = "nano", threshold: float = 0.5, checkpoint: str | None = None):
         self.model_size = model_size
         self.threshold = threshold
+        self.checkpoint = checkpoint        # fine-tune .pth → gecko detector, 없으면 COCO pretrained
+        self._is_finetuned = bool(checkpoint)
         self._model = None
-        self._coco_classes: dict[int, str] = {}
+        self._names: dict[int, str] = {}    # class_id → name (COCO 또는 fine-tune 클래스)
 
     def _ensure_loaded(self) -> None:
         if self._model is not None:
             return
         rfdetr = importlib.import_module("rfdetr")
-        cls_name = _MODEL_CLASSES.get(self.model_size, "RFDETRNano")
-        self._model = getattr(rfdetr, cls_name)()
-        self._coco_classes = _load_coco_classes()
+        if self.checkpoint:
+            # fine-tune 체크포인트 → 아키텍처·클래스수를 체크포인트 args 에서 복원
+            self._model = rfdetr.RFDETR.from_checkpoint(str(self.checkpoint))
+            try:
+                self._model.optimize_for_inference()  # 추론 latency↓ (학습 후 권장)
+            except Exception:  # noqa: BLE001
+                pass
+            try:
+                self._names = {i: str(n) for i, n in enumerate(self._model.class_names or [])}
+            except Exception:  # noqa: BLE001
+                self._names = {}
+        else:
+            cls_name = _MODEL_CLASSES.get(self.model_size, "RFDETRNano")
+            self._model = getattr(rfdetr, cls_name)()
+            self._names = _load_coco_classes()
 
     def detect(self, frame_bgr: np.ndarray) -> list[RawDetection]:
         self._ensure_loaded()
@@ -92,6 +106,6 @@ class GeckoDetector:
         # supervision Detections: .xyxy (N,4) · .confidence (N,) · .class_id (N,)
         results: list[RawDetection] = []
         for xyxy, conf, cid in zip(det.xyxy, det.confidence, det.class_id):
-            name = self._coco_classes.get(int(cid), f"class_{int(cid)}")
+            name = self._names.get(int(cid)) or ("gecko" if self._is_finetuned else f"class_{int(cid)}")
             results.append(RawDetection(name, float(conf), _xyxy_to_xywh(xyxy)))
         return results
