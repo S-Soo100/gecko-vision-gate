@@ -79,3 +79,44 @@ def assign_clip_splits(clip_ids, ratios: tuple[float, float, float] = (0.7, 0.15
     for i, c in enumerate(clips):
         out[c] = "train" if i < n_tr else ("val" if i < n_tr + n_va else "test")
     return out
+
+
+# ── RF-DETR(Roboflow) 학습 레이아웃 변환 ──
+# RF-DETR 은 dataset_dir/{train,valid,test}/_annotations.coco.json + 이미지(같은 폴더)를
+# 기대하고, category id 0=더미·1=실클래스인 Roboflow 관례를 따른다.
+ROBOFLOW_CATEGORIES = [
+    {"id": 0, "name": "gecko", "supercategory": "none"},
+    {"id": 1, "name": "gecko", "supercategory": "gecko"},
+]
+
+
+def flatten_name(raw_rel: str) -> str:
+    """raw 상대경로 → split 폴더 내 충돌없는 평면 파일명.
+
+    operational/9af1ba2e/f000.jpg → operational__9af1ba2e__f000.jpg
+    (clip 마다 같은 basename(f000…)이라 평면 폴더에선 충돌 → 경로를 파일명에 인코딩).
+    """
+    return raw_rel.replace("/", "__")
+
+
+def to_rfdetr_coco(our_coco: dict) -> dict:
+    """우리 coco(file_name=raw상대경로, category 1) → RF-DETR 레이아웃용 coco.
+
+    file_name 평면화 + categories 를 Roboflow 관례로. annotations(category_id=1) 그대로.
+    """
+    images = [{**im, "file_name": flatten_name(im["file_name"])} for im in our_coco.get("images", [])]
+    return {
+        "images": images,
+        "annotations": list(our_coco.get("annotations", [])),
+        "categories": [dict(c) for c in ROBOFLOW_CATEGORIES],
+    }
+
+
+def subset_coco(coco: dict, limit: int) -> dict:
+    """앞 limit 개 이미지 + 그 annotations 만 (smoke 용). limit<=0 이면 원본 그대로."""
+    if limit <= 0:
+        return coco
+    imgs = coco.get("images", [])[:limit]
+    keep = {im["id"] for im in imgs}
+    anns = [a for a in coco.get("annotations", []) if a["image_id"] in keep]
+    return {"images": imgs, "annotations": anns, "categories": coco.get("categories", [])}

@@ -5,8 +5,11 @@ from collections import Counter
 from gecko_vision_gate.coco_import import (
     assign_clip_splits,
     collect_gecko_images,
+    flatten_name,
     gecko_category_ids,
     raw_rel_from_path,
+    subset_coco,
+    to_rfdetr_coco,
 )
 
 
@@ -68,3 +71,31 @@ def test_assign_clip_splits_no_leak_ratio_deterministic():
     assert len(sp) == 32  # 모든 clip 정확히 한 split
     assert assign_clip_splits(clips) == sp  # 결정적
     assert assign_clip_splits([*clips, *clips]) == sp  # 중복 입력도 동일
+
+
+def test_flatten_name_encodes_path():
+    assert flatten_name("operational/9af1ba2e/f000_t0.0.jpg") == "operational__9af1ba2e__f000_t0.0.jpg"
+
+
+def test_to_rfdetr_coco_flattens_and_roboflow_categories():
+    our = {
+        "images": [{"id": 1, "file_name": "operational/c/f.jpg", "width": 10, "height": 10}],
+        "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "bbox": [0, 0, 5, 5]}],
+        "categories": [{"id": 1, "name": "gecko"}],
+    }
+    rf = to_rfdetr_coco(our)
+    assert rf["images"][0]["file_name"] == "operational__c__f.jpg"
+    assert rf["categories"][0]["id"] == 0 and rf["categories"][1]["name"] == "gecko"  # Roboflow 관례
+    assert rf["annotations"] == our["annotations"]  # 박스 그대로
+
+
+def test_subset_coco_keeps_first_n_and_their_anns():
+    coco = {
+        "images": [{"id": 1, "file_name": "a"}, {"id": 2, "file_name": "b"}, {"id": 3, "file_name": "c"}],
+        "annotations": [{"id": 1, "image_id": 1, "bbox": [0, 0, 1, 1]}, {"id": 2, "image_id": 3, "bbox": [0, 0, 1, 1]}],
+        "categories": [{"id": 1, "name": "gecko"}],
+    }
+    s = subset_coco(coco, 2)
+    assert [im["id"] for im in s["images"]] == [1, 2]
+    assert len(s["annotations"]) == 1 and s["annotations"][0]["image_id"] == 1  # img3 제외
+    assert subset_coco(coco, 0) == coco  # limit<=0 → 원본
