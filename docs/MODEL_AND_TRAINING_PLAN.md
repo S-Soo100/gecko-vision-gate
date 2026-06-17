@@ -503,12 +503,55 @@ R2에서 mp4 다운로드
 
 ## 8. 다음 액션
 
+> **진행 현황 (2026-06-17)** — 데이터/스크립트 상세는 `datasets/README.md`.
+
 ```text
-1. RF-DETR core 설치/예제 inference 검증
-2. 운영 영상 30~50개에서 프레임 추출
-3. gecko bbox 라벨링 시작
-4. no-gecko negative 프레임 수집
-5. 작은 PoC fine-tuning
-6. false negative 중심 평가
-7. JSON contract 확정
+1. RF-DETR core 설치/예제 inference 검증        ✓ (Phase 0)
+2. 운영 영상에서 프레임 추출                     ✓ 32 clip / 185 프레임
+3. gecko bbox 라벨링 시작                        ✓ 운영 185 라벨(Label Studio) + 외부 Roboflow PD 1,430 base
+4. no-gecko negative 프레임 수집                 ◐ 운영 negative 25 (부분 — 확대 여지)
+5. 작은 PoC fine-tuning                          ✓ RFDETRNano MPS, best val mAP 0.82
+6. false negative 중심 평가                      ✓ test(28) recall@0.25=1.00 · mAP@50 0.90 (단 negative 0 → FP 미측정)
+7. JSON contract 확정                            — (PROJECT_PLAN.md)
 ```
+
+후속: 베이스라인 → auto-label 루프(초안 모델로 미라벨 프레임 pre-label → 사람 검수 → 재학습),
+hard-case(야간/가림) 집중 라벨, fine-tune 가중치를 `prelabel` 에 연결.
+
+## 9. 다음 세션 로드맵 (2026-06-18)
+
+> **v0 상태**: test(28) recall@0.25=1.00 · mAP@50 0.90 · val-neg FP 0/7 → 게이트 conf≈0.25.
+> **약점**: test/negative 표본 작음(neg 25), 주간 편중, 같은 펫캠 환경. → 개선 핵심은 모델이 아니라 **데이터**.
+
+### 방법 — auto-label 루프 (v0 모델을 라벨링 조수로)
+1. `uv run python scripts/autolabel.py --checkpoint runs/gecko_v0/checkpoint_best_total.pth --source <폴더> --conf 0.25` → bbox 초안 COCO
+2. Label Studio 로 불러 사람이 교정(빠른 수정·놓친 것 추가·틀린 박스 삭제)
+3. `scripts/import_label_studio_operational.py`(운영) / `import_roboflow_coco.py`(외부) 로 재인입
+4. `scripts/train_gecko_detector.py --model small --epochs 30 --accelerator mps` 재학습
+5. recall·FP 재측정(`runs/.../gate_metrics.json`) → 놓친 유형만 다음 라운드 집중(§5.5 step4)
+
+### 데이터 우선순위 (영향 큰 순)
+- [ ] **1. negative 확대 (최우선)** — `extract_operational_frames.py` 로 빈 프레임 → LS 빈제출 → **100~300장**. FP 신뢰도 확보(현재 25장뿐).
+- [ ] **2. 야간·가림 hard-case** — 운영 프레임 더 + `staging/` 크롤 후보 선별·라벨. false negative ↓.
+- [ ] **3. 환경/시간대 다양성** — 새 카메라·사육장·시간대 클립 추가(학습 + test 대표성).
+
+### 모델 손잡이 (보조 — 데이터 다음)
+- [ ] operational 비중 ↑ (현재 주간 1430 : 운영 127 편중)
+- [ ] Nano → `--model small`
+- [ ] 작은 데이터 과튜닝 금지(§5.5)
+
+### 완료 기준
+더 크고 다양한 test(negative 포함)에서 recall 높음 + FP 낮음 → 게이트 conf 확정 → mp4 클립단위 평가(§6).
+
+### ▶ 다음 세션 첫 걸음
+> `extract_operational_frames.py` 로 야간/빈 프레임 추출 → LS 에서 **negative 100장 + 야간 게코 라벨** →
+> `import_label_studio_operational.py` → `train_gecko_detector.py --model small --epochs 30 --accelerator mps` → recall·FP 재측정.
+
+### 추가 후속 (2026-06-18 wrap 발굴)
+- [ ] **(P0) PR `feat/hardcase-image-pipeline` → main 머지** — v0 코드가 아직 main에 없음.
+- [ ] **(P1) staging hard-case 후보 선별 → `promote_staging.py`** — 이미 수백 장(ir_night ~414 등) 수집돼 선별 대기.
+- [ ] **(P1) mp4 클립단위 평가(§6)** — v0 체크포인트로 지금 가능. test 클립에 `prelabel --checkpoint` → clip-level recall/FP (이미지단위 recall 1.0이 클립단위에서도 유지되는지 조기 검증).
+- [ ] **(P1) 운영 positive 160장 domain 태깅** — 현재 빈칸 → recall-by-domain 분석용.
+- [ ] **(P2) crawl_breeder 7,830장 활용 결정** — 주간이라 무작정 추가 시 도메인 갭 심화(보류/일부/제외 판단).
+- [ ] **(P2) JSON contract 확정(§8.7)** — `specs/architecture.md §5.1`을 SOT로 선언.
+- ⚠️ **negative 100장 확보 전 `--model small` 금지** (작은 데이터 과튜닝 위험 — 데이터 먼저).

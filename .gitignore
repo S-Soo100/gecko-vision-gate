@@ -20,9 +20,16 @@ samples/clips/*.mp4
 samples/clips/*.mov
 samples/outputs/*.json
 
-# 학습 데이터셋 — 이미지는 무거워서 git 추적 안 함 (manifest.csv/README/annotations 는 추적)
+# 학습 데이터셋 — 이미지는 무거워서 git 추적 안 함 (manifest.csv/source_metadata.csv/README/annotations 는 추적)
 datasets/raw/
 datasets/coco/images/
+# 크롤 후보 작업장 (선별 전 transient — promote 후 비움)
+datasets/staging/
+# RF-DETR 학습용 materialize 산출물(symlink) + 학습 출력(체크포인트·로그)
+datasets/rfdetr_build/
+runs/
+# auto-label 초안 COCO (모델 출력, 재생성 가능 — 검수 후 정식 라벨로)
+datasets/autolabel/
 
 # 환경변수 (Phase 3 Supabase/R2)
 .env

@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "opencv-python-headless>=4.13.0.92",
+    "requests>=2.32",
     "rfdetr>=1.8.0",
 ]
 
@@ -23,3 +24,13 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.1.0",
 ]
+# 학습 의존성(pytorch_lightning·torchmetrics·albumentations 등). 추론 런타임엔 불필요해서
+# main 이 아닌 별도 그룹 — production 설치는 가볍게 유지. 학습 실행은 src/scripts/train_*.
+train = [
+    "rfdetr[train,loggers]>=1.8.0",
+]
+
+[tool.uv]
+# 현 단계는 학습이 핵심이라 train 그룹을 기본 포함 → uv run/sync 시 자동 설치(마찰 0).
+# production(추론만) 배포는 main deps 만 쓰면 됨.
+default-groups = ["dev", "train"]

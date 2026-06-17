@@ -1,0 +1,39 @@
+{
+  "_doc": "Google hard-case 이미지 수집 검색어 큐. 설계: docs/GOOGLE_HARDCASE_CRAWLING_DESIGN.md §8",
+  "_mechanism": "SerpApi google_images (Google Custom Search JSON API 가 2025 신규마감·2027 종료라 대체)",
+  "_quota": "검색당 1 SerpApi call(=ijn 1페이지, ~100결과). enabled 23개 × pages → 무료티어 250/월 안에서.",
+  "_negatives": "negative(게코없음) 는 SerpApi 아닌 운영프레임에서 뽑는다(설계서 §4.1/§8.4). 아래 _negative_reference 는 부득이할 때만 수동 참고.",
+  "_negative_reference": [
+    "reptile enclosure night vision no animal",
+    "crested gecko enclosure night empty",
+    "terrarium night vision empty",
+    "gecko enclosure hide cork bark no gecko"
+  ],
+  "queries": [
+    {"query": "crested gecko night vision",            "domain_hint": "ir_night",          "target_source": "crawl_nighttime", "note": "§8.1"},
+    {"query": "crested gecko infrared camera",          "domain_hint": "ir_night",          "target_source": "crawl_nighttime", "note": "§8.1"},
+    {"query": "crested gecko night camera",             "domain_hint": "ir_night",          "target_source": "crawl_nighttime", "note": "§8.1"},
+    {"query": "crested gecko black and white camera",   "domain_hint": "ir_night",          "target_source": "crawl_nighttime", "note": "§8.1"},
+    {"query": "gecko night vision camera",              "domain_hint": "ir_night",          "target_source": "crawl_nighttime", "note": "§8.1"},
+    {"query": "gecko infrared night",                   "domain_hint": "ir_night",          "target_source": "crawl_nighttime", "note": "§8.1"},
+    {"query": "gecko security camera night",            "domain_hint": "ir_night",          "target_source": "crawl_nighttime", "note": "§8.1"},
+    {"query": "leopard gecko night vision",             "domain_hint": "ir_night",          "target_source": "crawl_nighttime", "note": "§8.1"},
+
+    {"query": "crested gecko hiding",                   "domain_hint": "occluded",          "target_source": "crawl_google",    "note": "§8.2"},
+    {"query": "crested gecko hide",                     "domain_hint": "occluded",          "target_source": "crawl_google",    "note": "§8.2"},
+    {"query": "crested gecko behind cork bark",         "domain_hint": "occluded",          "target_source": "crawl_google",    "note": "§8.2"},
+    {"query": "crested gecko in enclosure hiding",      "domain_hint": "occluded",          "target_source": "crawl_google",    "note": "§8.2"},
+    {"query": "crested gecko partially visible",        "domain_hint": "occluded",          "target_source": "crawl_google",    "note": "§8.2"},
+    {"query": "gecko hiding behind branch",             "domain_hint": "occluded",          "target_source": "crawl_google",    "note": "§8.2"},
+    {"query": "gecko hiding in plants",                 "domain_hint": "occluded",          "target_source": "crawl_google",    "note": "§8.2"},
+    {"query": "gecko in cork bark",                     "domain_hint": "occluded",          "target_source": "crawl_google",    "note": "§8.2"},
+    {"query": "gecko peeking out hide",                 "domain_hint": "occluded",          "target_source": "crawl_google",    "note": "§8.2"},
+
+    {"query": "crested gecko night hiding",             "domain_hint": "ir_night_occluded", "target_source": "crawl_nighttime", "note": "§8.3 최우선"},
+    {"query": "crested gecko night enclosure",          "domain_hint": "ir_night_occluded", "target_source": "crawl_nighttime", "note": "§8.3 최우선"},
+    {"query": "crested gecko night camera hiding",      "domain_hint": "ir_night_occluded", "target_source": "crawl_nighttime", "note": "§8.3 최우선"},
+    {"query": "gecko night vision enclosure",           "domain_hint": "ir_night_occluded", "target_source": "crawl_nighttime", "note": "§8.3 최우선"},
+    {"query": "gecko infrared hiding",                  "domain_hint": "ir_night_occluded", "target_source": "crawl_nighttime", "note": "§8.3 최우선"},
+    {"query": "gecko hiding at night",                  "domain_hint": "ir_night_occluded", "target_source": "crawl_nighttime", "note": "§8.3 최우선"}
+  ]
+}

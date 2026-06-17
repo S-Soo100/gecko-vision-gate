@@ -37,9 +37,16 @@ R2 event clip
 - [docs/MODEL_AND_TRAINING_PLAN.md](docs/MODEL_AND_TRAINING_PLAN.md) — 모델 후보, 학습자료, 학습/평가 진행 순서
 - [specs/architecture.md](specs/architecture.md) — 확정 아키텍처 (상시 prelabeler) + 구현 Phase
 
-## 상태 (2026-06-17)
+## 상태 (2026-06-18)
 
-**Phase 0 완료** — RF-DETR core 설치 + 로컬 mp4 prelabel 파이프라인 동작. 현재 `v0-coco`(COCO pretrained라 gecko 미검출 — fine-tune 전, `bird`/`cup`으로 오탐). 다음은 Phase 1 (seed 라벨링 → fine-tune).
+**Phase 1 진행 중** — 학습 데이터셋 + fine-tune 파이프라인 구축 완료.
+- 데이터: train **1,557**(외부 Roboflow PD 1,430 + 운영 127) · val 30 · **test 28(운영 전용)** COCO 완성. 상세 → [datasets/README.md](datasets/README.md).
+- 도구: SerpApi hard-case 크롤러 · Roboflow/Label Studio COCO importer · 무결성 가드 · fine-tune 스크립트(`scripts/`), 26 pytest.
+- **RF-DETR v0 fine-tune 완료** (RFDETRNano, MPS): test(28장) **mAP@50 0.90 · 게이트 recall@0.25 = 1.00**(놓침 0), val negative FP 0/7 → **권장 게이트 conf≈0.25**. checkpoint `runs/gecko_v0/`.
+- **작동하는 게이트**: `prelabel --checkpoint runs/gecko_v0/checkpoint_best_total.pth` 로 실제 gecko 탐지(검증됨). auto-label 도구(`scripts/autolabel.py`)로 데이터 확장 준비.
+- 다음: **FP 측정**(test negative 0 → negative 확대) · hard-case(야간/가림) 라벨 확대 · 재학습 → 운영 클립단위 평가.
+
+> 베이스라인 주의: test 28장·5클립·**negative 0** → recall 1.00은 고무적이나 표본이 작고 false positive 미측정. negative 확대가 다음 우선순위.
 
 ## 설치 & 실행
 
