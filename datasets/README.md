@@ -128,7 +128,8 @@ uv run python scripts/train_gecko_detector.py --epochs 20 --batch-size 4 --accel
 
 - **COCO 라벨 완성**: `coco/annotations/` → train **1,557**(roboflow 1430 + 운영 127) · val **30** · test **28**(운영 전용).
 - **domain**: day_other 1,430 · negative 25 · (운영 positive 160 미태깅 — recall-by-domain 분석용 추후 태깅).
-- **모델 (v0 fine-tune, RFDETRNano/MPS)**: test(28장) **mAP@50 0.90** · **게이트 image-level recall@0.25 = 1.00(FN 0)** / @0.5 0.93. checkpoint `runs/gecko_v0/checkpoint_best_total.pth`. ⚠ test negative 0 → **FP 미측정**(negative 확대 후 재평가).
+- **모델 (v0 fine-tune, RFDETRNano/MPS)**: test(28장) mAP@50 0.90. 게이트 image-level **recall@0.25=1.00(FN 0)**/@0.5 0.93. FP(negative): **val 7장 @0.25 = 0건**, train 18장 @0.25 = 6건(표본 소·일부 학습노출). → **게이트 운영점 conf≈0.25**(recall 우선, §7). checkpoint `runs/gecko_v0/checkpoint_best_total.pth`.
+  - ⚠ negative 25장뿐 → FP 추정 불안정. **negative 확대가 최우선 후속**(운영 프레임에서 추가).
 
 ⚠️ **도메인 갭 (여전히)**: 라벨된 1,615장 중 1,430(roboflow)+breeder 가 **주간**. 야간 IR·가림 hard-case 신호는 운영 127 + 미선별 staging 뿐 → 운영/hard-case 라벨 확대가 recall 의 핵심. **test 는 운영만**.
 

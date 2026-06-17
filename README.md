@@ -42,7 +42,7 @@ R2 event clip
 **Phase 1 진행 중** — 학습 데이터셋 + fine-tune 파이프라인 구축 완료.
 - 데이터: train **1,557**(외부 Roboflow PD 1,430 + 운영 127) · val 30 · **test 28(운영 전용)** COCO 완성. 상세 → [datasets/README.md](datasets/README.md).
 - 도구: SerpApi hard-case 크롤러 · Roboflow/Label Studio COCO importer · 무결성 가드 · fine-tune 스크립트(`scripts/`), 26 pytest.
-- **RF-DETR v0 fine-tune 완료** (RFDETRNano, MPS): test(28장) **mAP@50 0.90 · 게이트 recall@0.25 = 1.00**(놓침 0). checkpoint `runs/gecko_v0/`.
+- **RF-DETR v0 fine-tune 완료** (RFDETRNano, MPS): test(28장) **mAP@50 0.90 · 게이트 recall@0.25 = 1.00**(놓침 0), val negative FP 0/7 → **권장 게이트 conf≈0.25**. checkpoint `runs/gecko_v0/`.
 - **작동하는 게이트**: `prelabel --checkpoint runs/gecko_v0/checkpoint_best_total.pth` 로 실제 gecko 탐지(검증됨). auto-label 도구(`scripts/autolabel.py`)로 데이터 확장 준비.
 - 다음: **FP 측정**(test negative 0 → negative 확대) · hard-case(야간/가림) 라벨 확대 · 재학습 → 운영 클립단위 평가.
 
