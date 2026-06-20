@@ -78,6 +78,8 @@ datasets/
 **negative(게코 없음)** 는 SerpApi 가 아니라 **운영 프레임에서** 뽑는다(§4.1·§8.4):
 `extract_operational_frames.py` 로 추출 → `raw/negative/` 로 분류. (부득이할 때만
 `crawl_queries.json` 의 `_negative_reference` 를 수동 참고.)
+> **negative 큐레이션 기준: `docs/NEGATIVE_DATA_GUIDELINE.md`** — hard negative(야간 IR·은신처·글레어) 우선,
+> 도메인 일치 필수. 이벤트 클립 균등샘플링은 yield 0.6% 로 부적합(2026-06-18 파일럿).
 
 **재개:** 인터넷이 끊겨도 매 다운로드가 `staging_metadata.csv` 에, 매 페이지가
 `.fetch_progress.json` 에 저장된다. `--resume` 면 쿼리별 `last_page+1` 부터 이어받음.
