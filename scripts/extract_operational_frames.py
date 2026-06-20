@@ -9,7 +9,8 @@
       --per-class 5 --frames 6 [--dry-run]
 
 frame_sampling.sample_frames(균등 N장)를 재사용. 원본 해상도 그대로 저장(no-upscale).
-멱등 아님 — 같은 clip_id 폴더에 다시 쓰면 덮어씀. 추출 후 build_manifest.py 재실행.
+멱등 — 이미 있는 clip_id 폴더는 skip(기존 라벨 원본 보호). 덮어쓰려면 --force.
+추출 후 build_manifest.py 재실행.
 """
 
 from __future__ import annotations
@@ -45,6 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--per-class", type=int, default=5, help="클래스당 영상 수 (0=전체)")
     ap.add_argument("--frames", type=int, default=6, help="영상당 프레임 수")
     ap.add_argument("--seed", type=int, default=42, help="영상 샘플링 재현용 seed")
+    ap.add_argument("--force", action="store_true", help="이미 추출된 clip 폴더도 덮어씀(기본: skip)")
     ap.add_argument("--dry-run", action="store_true", help="선택만 출력, 추출 안 함")
     args = ap.parse_args(argv)
 
@@ -68,20 +70,24 @@ def main(argv: list[str] | None = None) -> int:
     for cls, vs in sorted(by_class.items()):
         picked = len(vs) if args.per_class == 0 else min(args.per_class, len(vs))
         print(f"  {cls:16} {picked}/{len(vs)}")
-    print(f"예상 프레임 ≈ {len(chosen) * args.frames}")
+    will_skip = 0 if args.force else sum(1 for v in chosen if (OUT / clip_id_of(v)).exists())
+    print(f"예상 프레임 ≈ {(len(chosen) - will_skip) * args.frames}  (신규 {len(chosen) - will_skip} / 기존 skip {will_skip})")
 
     if args.dry_run:
         print("[dry-run] 추출 안 함")
         return 0
 
-    total = 0
+    total = skipped = 0
     for v in chosen:
         outdir = OUT / clip_id_of(v)
+        if outdir.exists() and not args.force:
+            skipped += 1
+            continue
         outdir.mkdir(parents=True, exist_ok=True)
         for i, (ts, frame) in enumerate(sample_frames(v, args.frames)):
             cv2.imwrite(str(outdir / f"f{i:03d}_t{ts:.1f}.jpg"), frame)
             total += 1
-    print(f"✅ {len(chosen)} 영상 → {total} 프레임 → {OUT}")
+    print(f"✅ {len(chosen) - skipped} 영상(기존 {skipped} skip) → {total} 프레임 → {OUT}")
     print("다음: uv run python scripts/build_manifest.py")
     return 0
 
