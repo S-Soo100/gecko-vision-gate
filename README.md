@@ -40,13 +40,13 @@ R2 event clip
 ## 상태 (2026-06-18)
 
 **Phase 1 진행 중** — 학습 데이터셋 + fine-tune 파이프라인 구축 완료.
-- 데이터: train **1,557**(외부 Roboflow PD 1,430 + 운영 127) · val 30 · **test 28(운영 전용)** COCO 완성. 상세 → [datasets/README.md](datasets/README.md).
+- 데이터: train **2,149** · val **180** · **test 170(운영 전용, negative 56·야간 IR 포함)** COCO 완성. 상세 → [datasets/README.md](datasets/README.md).
 - 도구: SerpApi hard-case 크롤러 · Roboflow/Label Studio COCO importer · 무결성 가드 · fine-tune 스크립트(`scripts/`), 26 pytest.
-- **RF-DETR v0 fine-tune 완료** (RFDETRNano, MPS): test(28장) **mAP@50 0.90 · 게이트 recall@0.25 = 1.00**(놓침 0), val negative FP 0/7 → **권장 게이트 conf≈0.25**. checkpoint `runs/gecko_v0/`.
-- **작동하는 게이트**: `prelabel --checkpoint runs/gecko_v0/checkpoint_best_total.pth` 로 실제 gecko 탐지(검증됨). auto-label 도구(`scripts/autolabel.py`)로 데이터 확장 준비.
-- 다음: **FP 측정**(test negative 0 → negative 확대) · hard-case(야간/가림) 라벨 확대 · 재학습 → 운영 클립단위 평가.
+- **RF-DETR v1 완료** (RFDETRNano, MPS) — negative 확대 라운드: **클립단위 test(25 pos/21 neg)** recall@0.25 **0.96** · FP **2/21**. v0는 같은 test에서 recall 1.00이지만 FP **19/21**(빈 클립 90% 오발동 — v0 test에 negative 0이라 그동안 미측정). → **권장 게이트 conf 0.25**, checkpoint `runs/gecko_v1/`.
+- **작동하는 게이트**: `prelabel --checkpoint runs/gecko_v1/checkpoint_best_total.pth` 로 실제 gecko 탐지(검증됨).
+- 다음: 게이트 운영 적용 · 환경/시간대 다양성 확대 · (선택) `--model small` 시도.
 
-> 베이스라인 주의: test 28장·5클립·**negative 0** → recall 1.00은 고무적이나 표본이 작고 false positive 미측정. negative 확대가 다음 우선순위.
+> 핵심 교훈: v0의 "recall 1.00·FP 0"은 **test에 negative가 0**이라 생긴 착시였음. negative 25→445 확대 후 클립 FP 19→2로 실측·해결. (`runs/`는 gitignore — 모델 파일 미커밋)
 
 ## 설치 & 실행
 

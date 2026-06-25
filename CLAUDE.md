@@ -4,11 +4,11 @@ RBA 파이프라인의 **Gate**: 펫캠 mp4 → "게코가 보이나?" 판단 + 
 행동분석기가 아니다(drinking/feeding 판단·Claude 호출 안 함). 상세: `README.md` ·
 `PROJECT_PLAN.md` · `specs/architecture.md` · `docs/MODEL_AND_TRAINING_PLAN.md`.
 
-## 현재 상태 (2026-06-18) — v0 fine-tune 완료
-- RF-DETR(RFDETRNano) gecko detector **v0**: test(28장) **recall@0.25=1.00 · mAP@50 0.90 · val-neg FP 0/7** → 게이트 conf≈0.25.
-- **작동 게이트**: `uv run python -m gecko_vision_gate.prelabel --input clip.mp4 --checkpoint runs/gecko_v0/checkpoint_best_total.pth --threshold 0.25`
-- 데이터: train 1557(roboflow PD 1430 + 운영 127) / val 30 / **test 28(운영 전용)**. 상세 `datasets/README.md`.
-- ⚠️ 약점: test/negative 표본 작음(neg 25), 주간 편중, 같은 펫캠 환경 → 숫자는 좋으나 표본 한계.
+## 현재 상태 (2026-06-25) — v1 (negative 확대 라운드 완료)
+- RF-DETR(RFDETRNano) gecko detector **v1**: 야간 IR negative 대폭 확대 재학습. **클립단위 test(25 pos/21 neg)** recall@0.25=**0.96** · FP **2/21**. (v0는 같은 test에서 recall 1.00이지만 FP **19/21** — 빈 클립 90% 오발동이, v0 test에 negative 0이라 그동안 미측정이었음.) 프레임단위 recall@0.25 0.982·FP 8/56. → 게이트 conf 0.25 유지.
+- **작동 게이트**: `uv run python -m gecko_vision_gate.prelabel --input clip.mp4 --checkpoint runs/gecko_v1/checkpoint_best_total.pth --threshold 0.25`
+- 데이터: train **2149** / val **180** / **test 170(운영 전용, negative 56·야간 IR 포함)** · negative domain **445**(이전 25). 상세 `datasets/README.md`.
+- ⚠️ FP 핵심 원인 = 흰색(릴리화이트) 게코가 흰 인조넝쿨·관엽식물·IR 글레어와 혼동. v1이 대폭 억제. v0(`runs/gecko_v0`) 비교용 보존. ⚠ `runs/`는 gitignore — 체크포인트·metrics 미커밋.
 
 ## ▶ 다음 작업
 **`docs/MODEL_AND_TRAINING_PLAN.md` §9 "다음 세션 로드맵"** 이 단일 출처.
