@@ -570,10 +570,13 @@ yield 0.6% 로 부적합" 판명 → 가이드라인 확립(`NEGATIVE_DATA_GUIDE
 ### 추가 후속 (2026-06-18 wrap 발굴)
 - [x] **(P0) PR `feat/hardcase-image-pipeline` → main 머지** — ✅ 완료 (PR #1, merge `b9fc731`).
 - [ ] **(P1) staging hard-case 후보 선별 → `promote_staging.py`** — 이미 수백 장(ir_night ~414 등) 수집돼 선별 대기.
-- [ ] **(P1) mp4 클립단위 평가(§6)** — v0 체크포인트로 지금 가능. test 클립에 `prelabel --checkpoint` → clip-level recall/FP (이미지단위 recall 1.0이 클립단위에서도 유지되는지 조기 검증).
+- [x] **(P1) mp4 클립단위 평가(§6)** — ✅ 완료(2026-06-25, R0001): 클립 test(25pos/21neg) recall@0.25 0.96 · FP 2/21. 도구 `scripts/eval_gate.py`(frame/clip·threshold sweep).
 - [ ] **(P1) 운영 positive 160장 domain 태깅** — 현재 빈칸 → recall-by-domain 분석용.
 - [ ] **(P2) crawl_breeder 7,830장 활용 결정** — 주간이라 무작정 추가 시 도메인 갭 심화(보류/일부/제외 판단).
 - [ ] **(P2) JSON contract 확정(§8.7)** — `specs/architecture.md §5.1`을 SOT로 선언.
 - [ ] **파일럿 부산물 처리** — `raw/operational` 18 clip·174 프레임(positive 173 + v0 박스초안, **manifest 미반영**) → 검수 후 운영 positive 인입 or 삭제 판단.
 - [x] **`extract_operational_frames.py` 멱등화** — 이미 추출된 clip skip(+`--force`). 기존 라벨 원본 덮어쓰기 방지. (2026-06-18)
-- ⚠️ **negative 100장 확보 전 `--model small` 금지** (작은 데이터 과튜닝 위험 — 데이터 먼저).
+- ✅ **`--model small` 해금** — negative 445 확보(R0001). 단 환경 다양화 먼저 권장.
+- [ ] **(P0)** `feat/negative-data-prep` → main PR · **(P0)** v1 체크포인트 R2 백업(`runs/` gitignore).
+- [x] **eval/도구 영속화** — `scripts/eval_gate.py`·`fetch_r2_clips.py`·`export_to_label_studio.py` 추가(R0001 재현성, /tmp 소실 방지).
+- [ ] **(P1)** LS 미제출 37 검수 · 파일럿 부산물 174 처리 · **(P2)** 운영 positive 160 domain 태깅.
