@@ -21,4 +21,5 @@ RBA 파이프라인의 **Gate**: 펫캠 mp4 → "게코가 보이나?" 판단 + 
 - **git**: 이미지/체크포인트/`staging/`/`rfdetr_build/`/`runs/`/`.env` 는 gitignore. 커밋 대상 = 코드 + 메타(`manifest.csv`·`coco/annotations`·`source_metadata.csv`). `.gitignore` 인라인 주석 금지(2026-06-17 사고).
 - **도구**: `scripts/` — build_manifest · extract_operational_frames · fetch_hardcase_images · promote_staging · import_roboflow_coco · import_label_studio_operational · autolabel · check_dataset · train_gecko_detector. 각 docstring 에 usage.
 - **검증**: 데이터/스키마 변경 후 `uv run python scripts/check_dataset.py` (test=운영만·domain·출처기록률). 코드 변경 후 `uv run pytest`.
+- **연구 기록**: 데이터·모델·평가에 의미있는 변경+결과가 난 **라운드마다 `reports/` 에 리포트 1개** 누적(템플릿 `reports/TEMPLATE.md` · 규칙·인덱스 `reports/README.md`). 불변 기록(확정 후 supersede) · **버전비교는 같은 test** · 음성결과도 기록.
 - **브랜치**: v0 는 `feat/hardcase-image-pipeline` → **main 머지 완료(PR #1)**. 새 작업은 main 에서 새 브랜치로. 커밋·푸시는 사용자 요청 시.
