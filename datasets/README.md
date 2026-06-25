@@ -78,6 +78,8 @@ datasets/
 **negative(게코 없음)** 는 SerpApi 가 아니라 **운영 프레임에서** 뽑는다(§4.1·§8.4):
 `extract_operational_frames.py` 로 추출 → `raw/negative/` 로 분류. (부득이할 때만
 `crawl_queries.json` 의 `_negative_reference` 를 수동 참고.)
+> **negative 큐레이션 기준: `docs/NEGATIVE_DATA_GUIDELINE.md`** — hard negative(야간 IR·은신처·글레어) 우선,
+> 도메인 일치 필수. 이벤트 클립 균등샘플링은 yield 0.6% 로 부적합(2026-06-18 파일럿).
 
 **재개:** 인터넷이 끊겨도 매 다운로드가 `staging_metadata.csv` 에, 매 페이지가
 `.fetch_progress.json` 에 저장된다. `--resume` 면 쿼리별 `last_page+1` 부터 이어받음.
@@ -117,19 +119,19 @@ uv run python scripts/train_gecko_detector.py --epochs 20 --batch-size 4 --accel
 ```
 디바이스: CPU·MPS·CUDA 모두 가능(속도 CUDA>MPS>CPU). recall 우선 게이트라 결과는 **임계값별 recall sweep**(`runs/<out>/gate_metrics.json`).
 
-## 현재 통계 (2026-06-17)
+## 현재 통계 (2026-06-25, v1)
 
 | source | 장수 | 라벨 | split | 비고 |
 |---|---|---|---|---|
 | `crawl_breeder` | 7,830 | ✗ 미라벨 | — | 분양샵/브리더, 밝은 주간 클로즈업 312~396px |
 | `roboflow_gecko_teddychiu` | 1,430 | ✓ | train | Roboflow Universe, **Public Domain**, 주간. 외부 base |
-| `operational` | 185 | ✓ | train 127 / val 30 / test 28 | 펫캠 32 clip, positives 160 + **negatives 25** |
+| `operational` | 2,034 | 일부 ✓ | train/val/test 분산 | 펫캠, positives + **negatives 445** (p4cam 야간 라운드 R0001) |
 | `crawl_google`/`crawl_nighttime`/`negative` | 0 | — | — | raw 비어있음 — 야간 hard-case 후보는 `staging/` 에 수집됨(선별·승격 대기) |
 
-- **COCO 라벨 완성**: `coco/annotations/` → train **1,557**(roboflow 1430 + 운영 127) · val **30** · test **28**(운영 전용).
-- **domain**: day_other 1,430 · negative 25 · (운영 positive 160 미태깅 — recall-by-domain 분석용 추후 태깅).
-- **모델 (v0 fine-tune, RFDETRNano/MPS)**: test(28장) mAP@50 0.90. 게이트 image-level **recall@0.25=1.00(FN 0)**/@0.5 0.93. FP(negative): **val 7장 @0.25 = 0건**, train 18장 @0.25 = 6건(표본 소·일부 학습노출). → **게이트 운영점 conf≈0.25**(recall 우선, §7). checkpoint `runs/gecko_v0/checkpoint_best_total.pth`.
-  - ⚠ negative 25장뿐 → FP 추정 불안정. **negative 확대가 최우선 후속**(운영 프레임에서 추가).
+- **COCO 라벨 완성**: `coco/annotations/` → train **2,149** · val **180** · test **170**(운영 전용, negative 56·야간 IR 포함).
+- **domain**: day_other 1,430 · **negative 445** · (운영 positive 160 미태깅 — recall-by-domain 분석용 추후 태깅).
+- **모델 (v1 fine-tune, RFDETRNano/MPS)**: **클립단위 test(25pos/21neg) recall@0.25 0.96 · FP 2/21** (v0 동일 test 는 FP 19/21 — neg-0 test 착시 규명). 프레임 recall@0.25 0.982·FP 8/56. → **게이트 conf 0.25**. checkpoint `runs/gecko_v1/checkpoint_best_total.pth`. 상세 [`reports/R0001`](../reports/R0001-negative-expansion-v1.md).
+  - ✅ negative 25→445 확대로 FP 실측·억제 완료. 다음 약점 = 환경 다양성(같은 펫캠·2일치).
 
 ⚠️ **도메인 갭 (여전히)**: 라벨된 1,615장 중 1,430(roboflow)+breeder 가 **주간**. 야간 IR·가림 hard-case 신호는 운영 127 + 미선별 staging 뿐 → 운영/hard-case 라벨 확대가 recall 의 핵심. **test 는 운영만**.
 
