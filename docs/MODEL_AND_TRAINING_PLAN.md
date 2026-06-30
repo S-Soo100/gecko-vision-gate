@@ -577,6 +577,6 @@ yield 0.6% 로 부적합" 판명 → 가이드라인 확립(`NEGATIVE_DATA_GUIDE
 - [ ] **파일럿 부산물 처리** — `raw/operational` 18 clip·174 프레임(positive 173 + v0 박스초안, **manifest 미반영**) → 검수 후 운영 positive 인입 or 삭제 판단.
 - [x] **`extract_operational_frames.py` 멱등화** — 이미 추출된 clip skip(+`--force`). 기존 라벨 원본 덮어쓰기 방지. (2026-06-18)
 - ✅ **`--model small` 해금** — negative 445 확보(R0001). 단 환경 다양화 먼저 권장.
-- [ ] **(P0)** `feat/negative-data-prep` → main PR · **(P0)** v1 체크포인트 R2 백업(`runs/` gitignore).
+- [x] **(P0)** `feat/negative-data-prep` → main PR — ✅ 완료(PR #2, merge `700d170`, 2026-06-25). [x] **(P0)** v1 체크포인트 R2 백업 — ✅ 완료(`s3://petcam-clips/gecko-vision-gate/models/{gecko_v0,gecko_v1}/`, gecko_v1 `checkpoint_best_total.pth` 120,796,091B·gate_metrics 검증).
 - [x] **eval/도구 영속화** — `scripts/eval_gate.py`·`fetch_r2_clips.py`·`export_to_label_studio.py` 추가(R0001 재현성, /tmp 소실 방지).
 - [ ] **(P1)** LS 미제출 37 검수 · 파일럿 부산물 174 처리 · **(P2)** 운영 positive 160 domain 태깅.
