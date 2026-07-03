@@ -33,9 +33,12 @@ def prelabel_clip(
     model_size: str = "nano",
     checkpoint: str | None = None,
     clip_id: str | None = None,
+    detector: GeckoDetector | None = None,
 ) -> PrelabelResult:
     frames = sample_frames(video_path, num_frames)
-    detector = GeckoDetector(model_size=model_size, threshold=threshold, checkpoint=checkpoint)
+    # detector 주입 시 재사용(배치에서 모델 1회 로드) — 없으면 클립마다 생성(기존 CLI 동작)
+    if detector is None:
+        detector = GeckoDetector(model_size=model_size, threshold=threshold, checkpoint=checkpoint)
 
     objects: list[DetectedObject] = []
     best: tuple[float, float, list[int]] | None = None  # (conf, ts, bbox) for TARGET

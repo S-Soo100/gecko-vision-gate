@@ -19,6 +19,8 @@ weights/
 samples/clips/*.mp4
 samples/clips/*.mov
 samples/outputs/*.json
+# 운영 클립 배치 분석 산출물 (prelabel JSON/CSV — 재생성 가능)
+outputs/
 
 # 학습 데이터셋 — 이미지는 무거워서 git 추적 안 함 (manifest.csv/source_metadata.csv/README/annotations 는 추적)
 datasets/raw/
