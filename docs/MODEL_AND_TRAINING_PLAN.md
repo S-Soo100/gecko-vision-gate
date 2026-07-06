@@ -525,15 +525,7 @@ hard-case(야간/가림) 집중 라벨, fine-tune 가중치를 `prelabel` 에 �
 >
 > **✅ 라운드1 완료(2026-06-25) → v1**: p4cam 야간 IR 290클립 인입(neg 25→445 · test 28→170 · train 2149). **클립단위 test(25pos/21neg) recall@0.25 0.96 · FP 2/21** — v0 를 같은 test 에 돌리면 FP 19/21(빈클립 90% 오발동)이라, v0 의 "FP 0"은 neg-0 test 착시였음이 드러남. conf 0.25 유지, checkpoint `runs/gecko_v1`(⚠ runs/ gitignore — 미커밋). 잔여 약점: 환경/시간대 다양성(여전히 같은 펫캠 2일치). 다음 후보 = §6 운영 적용 · `--model small` · 환경 다양화.
 >
-> **🔄 라운드2 진행 중(2026-07-03) — 환경/시간대 다양성 착수**: 오늘분 운영 클립 148개(R2 `p4cam-79b5d844/20260703-*`) 인입. 신규 도구 `batch_prelabel.py`(모델 1회 로드)로 게이트 실측 → 게코 86·negative 62·conf중앙 0.82. **저녁 검출 급락(KST 15→19시 100%→0%) 규명 = 야간 IR FN 아님, 게코 저녁 은신**(채도 15~19시 64~69 일정=IR전환無 + 프레임 육안·좌상단 유목 크롭). detector 정상, 재학습 불요. (PR#3 머지 = batch_prelabel.) 데이터: `raw/operational` +886프레임(`20260703-*`, manifest 12180행 반영) → `autolabel --glob '20260703-*/*'`(v1, conf 0.25) → COCO 초안 453박스.
->
-> **▶ 세션 재개점 (2026-07-03 — 오늘분 886프레임 검수 대기)**: 검수툴은 **Label Studio**(로컬 `~/.local/bin/label-studio`, CVAT 미설치 — "저번 cvat"는 LS 착각). 재개 순서:
-> 1. LS 기동: `LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=<repo>/datasets/raw label-studio start` → localhost:8080
-> 2. 프로젝트(라벨 config = gecko RectangleLabels) → Import `datasets/autolabel/operational_20260703.ls_tasks.json` (886 tasks · 박스초안 453 · 태그 color_boxed 453/color_box0 424/ir_box0 9)
-> 3. 검수 핵심 = **`color_box0` 424장에서 저녁 은신 놓친 게코 찾기** + `color_boxed` 453 박스 교정
-> 4. LS Export COCO → `import_label_studio_operational.py` 재인입 → `train_gecko_detector.py --model small` 재학습(v2) → recall·FP 재측정
-> - 미커밋: 브랜치 `feat/operational-autolabel-prep`(로컬 4b92529 = extract/autolabel `--glob` + manifest 886행) 푸시 안 함. 검수 후 재인입까지 묶어 PR 예정.
-> - 정리 가능: `outputs/cvat_20260703/` (CVAT용 flat+zip 216MB — LS 전환으로 미사용).
+> **✅ 라운드2 완료(2026-07-06) → v2 [R0002]**: 오늘분(20260703) 운영 148클립 인입 → `batch_prelabel` 게이트 실측 → **저녁 검출 급락 규명 = 게코 저녁 은신**(IR 아님, [[gecko-evening-retreat]]) → 886프레임 **Label Studio 전수검수**(v1 놓친 게코 대량: 박스 453→738·box0 433→145) → 882장 재인입(train 2770·val 311·**test 300**·neg 590) → v2 재학습(nano·epoch20 조기중단·mAP 0.7845). **같은 test 300: frame recall@0.25 0.80→0.98·clip 0.84→0.98, FP↑(frame 8→21·clip 2→5) → 게이트 conf 0.25→0.5 잠정 상향**(iso-FP서 v2 압도). 상세 `reports/R0002-evening-recall-v2.md`. 잔여 약점: 저녁 FP 억제 미완 · 여전히 같은 펫캠(카메라/모프 다양성 未) · `--model small` 미실험.
 
 ### 방법 — auto-label 루프 (v0 모델을 라벨링 조수로)
 1. `uv run python scripts/autolabel.py --checkpoint runs/gecko_v1/checkpoint_best_total.pth --source <폴더> --conf 0.25` → bbox 초안 COCO
