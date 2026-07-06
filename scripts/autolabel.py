@@ -30,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="fine-tune 모델 → COCO pre-annotation (auto-label)")
     ap.add_argument("--checkpoint", required=True, help="fine-tune .pth")
     ap.add_argument("--source", required=True, help="raw 하위 폴더명 (예: crawl_breeder)")
+    ap.add_argument("--glob", default="**/*", help="source 하위 필터 (예: '20260703-*/*' = 특정 clip만)")
     ap.add_argument("--out", default=None, help="출력 COCO (기본 datasets/autolabel/<source>.coco.json)")
     ap.add_argument("--conf", type=float, default=0.25, help="검출 임계값 (낮을수록 recall↑)")
     ap.add_argument("--limit", type=int, default=0, help="이미지 상한 (0=전체)")
@@ -39,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
     src_dir = RAW / args.source
     if not src_dir.exists():
         raise SystemExit(f"source 없음: {src_dir}")
-    imgs = sorted(p for p in src_dir.rglob("*") if p.is_file() and p.suffix.lower() in IMG_EXT)
+    imgs = sorted(p for p in src_dir.glob(args.glob) if p.is_file() and p.suffix.lower() in IMG_EXT)
     if args.limit:
         imgs = imgs[: args.limit]
     print(f"{args.source}: 대상 이미지 {len(imgs)} · conf≥{args.conf}")

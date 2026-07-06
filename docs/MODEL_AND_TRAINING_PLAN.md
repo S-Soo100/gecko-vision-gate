@@ -524,6 +524,8 @@ hard-case(야간/가림) 집중 라벨, fine-tune 가중치를 `prelabel` 에 �
 > **약점**: test/negative 표본 작음(neg 25), 주간 편중, 같은 펫캠 환경. → 개선 핵심은 모델이 아니라 **데이터**.
 >
 > **✅ 라운드1 완료(2026-06-25) → v1**: p4cam 야간 IR 290클립 인입(neg 25→445 · test 28→170 · train 2149). **클립단위 test(25pos/21neg) recall@0.25 0.96 · FP 2/21** — v0 를 같은 test 에 돌리면 FP 19/21(빈클립 90% 오발동)이라, v0 의 "FP 0"은 neg-0 test 착시였음이 드러남. conf 0.25 유지, checkpoint `runs/gecko_v1`(⚠ runs/ gitignore — 미커밋). 잔여 약점: 환경/시간대 다양성(여전히 같은 펫캠 2일치). 다음 후보 = §6 운영 적용 · `--model small` · 환경 다양화.
+>
+> **✅ 라운드2 완료(2026-07-06) → v2 [R0002]**: 오늘분(20260703) 운영 148클립 인입 → `batch_prelabel` 게이트 실측 → **저녁 검출 급락 규명 = 게코 저녁 은신**(IR 아님, [[gecko-evening-retreat]]) → 886프레임 **Label Studio 전수검수**(v1 놓친 게코 대량: 박스 453→738·box0 433→145) → 882장 재인입(train 2770·val 311·**test 300**·neg 590) → v2 재학습(nano·epoch20 조기중단·mAP 0.7845). **같은 test 300: frame recall@0.25 0.80→0.98·clip 0.84→0.98, FP↑(frame 8→21·clip 2→5) → 게이트 conf 0.25→0.5 잠정 상향**(iso-FP서 v2 압도). 상세 `reports/R0002-evening-recall-v2.md`. 잔여 약점: 저녁 FP 억제 미완 · 여전히 같은 펫캠(카메라/모프 다양성 未) · `--model small` 미실험.
 
 ### 방법 — auto-label 루프 (v0 모델을 라벨링 조수로)
 1. `uv run python scripts/autolabel.py --checkpoint runs/gecko_v1/checkpoint_best_total.pth --source <폴더> --conf 0.25` → bbox 초안 COCO

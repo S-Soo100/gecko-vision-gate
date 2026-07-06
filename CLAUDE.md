@@ -4,11 +4,11 @@ RBA 파이프라인의 **Gate**: 펫캠 mp4 → "게코가 보이나?" 판단 + 
 행동분석기가 아니다(drinking/feeding 판단·Claude 호출 안 함). 상세: `README.md` ·
 `PROJECT_PLAN.md` · `specs/architecture.md` · `docs/MODEL_AND_TRAINING_PLAN.md`.
 
-## 현재 상태 (2026-06-25) — v1 (negative 확대 라운드 완료)
-- RF-DETR(RFDETRNano) gecko detector **v1**: 야간 IR negative 대폭 확대 재학습. **클립단위 test(25 pos/21 neg)** recall@0.25=**0.96** · FP **2/21**. (v0는 같은 test에서 recall 1.00이지만 FP **19/21** — 빈 클립 90% 오발동이, v0 test에 negative 0이라 그동안 미측정이었음.) 프레임단위 recall@0.25 0.982·FP 8/56. → 게이트 conf 0.25 유지.
-- **작동 게이트**: `uv run python -m gecko_vision_gate.prelabel --input clip.mp4 --checkpoint runs/gecko_v1/checkpoint_best_total.pth --threshold 0.25`
-- 데이터: train **2149** / val **180** / **test 170(운영 전용, negative 56·야간 IR 포함)** · negative domain **445**(이전 25). 상세 `datasets/README.md`.
-- ⚠️ FP 핵심 원인 = 흰색(릴리화이트) 게코가 흰 인조넝쿨·관엽식물·IR 글레어와 혼동. v1이 대폭 억제. v0(`runs/gecko_v0`) 비교용 보존. ⚠ `runs/`는 gitignore — 체크포인트·metrics 미커밋.
+## 현재 상태 (2026-07-06) — v2 (저녁/시간대 데이터 확대 라운드 완료, R0002)
+- RF-DETR(RFDETRNano) gecko detector **v2**: 오늘분(20260703) 운영 저녁 은신 프레임 확대 재학습. **같은 새 test 300(frame 230pos/70neg · clip 45pos/23neg)** 에서 frame recall@0.25 **0.80(v1)→0.98(v2)** · clip 0.84→0.98 — v1이 놓치던 저녁 은신 게코를 잡음. **단 FP 증가**(frame 8→21·clip 2→5) → **게이트 conf 0.25→0.5 잠정 상향**(frame recall 0.94·FP 12/70·clip FP 3/23). 상세 [reports/R0002](reports/R0002-evening-recall-v2.md).
+- **작동 게이트**: `uv run python -m gecko_vision_gate.prelabel --input clip.mp4 --checkpoint runs/gecko_v2/checkpoint_best_ema.pth --threshold 0.5`
+- 데이터: train **2770** / val **311** / **test 300(운영 전용)** · negative domain **590**. 상세 `datasets/README.md`.
+- ⚠️ FP 핵심 원인 = 흰색(릴리화이트) 게코가 흰 인조넝쿨·관엽식물·IR 글레어와 혼동(v1 억제, v2는 recall↑ 대가로 저녁 FP 소폭 재증가 → threshold 상향으로 관리). v1(`runs/gecko_v1`)·v0(`runs/gecko_v0`) 비교용 보존. ⚠ `runs/`는 gitignore — 체크포인트·metrics 미커밋.
 
 ## ▶ 다음 작업
 **`docs/MODEL_AND_TRAINING_PLAN.md` §9 "다음 세션 로드맵"** 이 단일 출처.

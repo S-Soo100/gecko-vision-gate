@@ -43,6 +43,7 @@ def clip_id_of(path: Path) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="운영 영상 → 학습 프레임 추출")
     ap.add_argument("--source-dir", required=True, help="운영 영상 폴더 (예: dataset-203)")
+    ap.add_argument("--glob", default="*", help="source-dir 내 파일 필터 (예: '20260703-*')")
     ap.add_argument("--per-class", type=int, default=5, help="클래스당 영상 수 (0=전체)")
     ap.add_argument("--frames", type=int, default=6, help="영상당 프레임 수")
     ap.add_argument("--seed", type=int, default=42, help="영상 샘플링 재현용 seed")
@@ -54,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     if not src.exists():
         raise SystemExit(f"source dir not found: {src}")
 
-    videos = [p for p in src.iterdir() if p.is_file() and p.suffix.lower() in VIDEO_EXT]
+    videos = [p for p in src.glob(args.glob) if p.is_file() and p.suffix.lower() in VIDEO_EXT]
     by_class: dict[str, list[Path]] = defaultdict(list)
     for v in videos:
         by_class[class_of(v)].append(v)

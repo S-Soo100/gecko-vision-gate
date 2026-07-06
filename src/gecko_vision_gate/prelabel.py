@@ -50,7 +50,8 @@ def prelabel_clip(
                 best = (d.confidence, ts, d.xywh)
 
     model_name = f"rf-detr-{model_size}"
-    model_version = MODEL_VERSION if checkpoint is None else f"v1-gecko ({Path(checkpoint).stem})"
+    # 체크포인트 폴더명(runs/gecko_v2 → "gecko_v2")으로 버전 자동 반영 (하드코딩 금지)
+    model_version = MODEL_VERSION if checkpoint is None else f"{Path(checkpoint).parent.name} ({Path(checkpoint).stem})"
     common = dict(
         detected_objects=tuple(objects),
         frames_sampled=len(frames),
