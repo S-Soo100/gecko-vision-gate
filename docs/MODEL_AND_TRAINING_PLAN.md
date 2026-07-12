@@ -520,6 +520,8 @@ hard-case(야간/가림) 집중 라벨, fine-tune 가중치를 `prelabel` 에 �
 
 ## 9. 다음 세션 로드맵 (2026-06-18)
 
+> **2026-07-12 supersede:** 최신 v3 실행 SOT는 [`../specs/gate-v3.md`](../specs/gate-v3.md)다. 바로 재학습하지 않고 v2 best-EMA artifact와 backlog 평가 조건을 통일한 뒤 300건 전체 human-first blind GT를 만든다. 이후 여러 카메라·개체·사육장의 paired hard positive/negative를 camera-night 단위로 분리해 v3 Nano를 학습하고, 자동 skip 없이 shadow prelabel로 future holdout을 쌓는다. 아래 내용은 v0~v2 진행 이력과 도구 참고로 보존한다.
+
 > **v0 상태**: test(28) recall@0.25=1.00 · mAP@50 0.90 · val-neg FP 0/7 → 게이트 conf≈0.25.
 > **약점**: test/negative 표본 작음(neg 25), 주간 편중, 같은 펫캠 환경. → 개선 핵심은 모델이 아니라 **데이터**.
 >

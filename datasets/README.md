@@ -119,21 +119,21 @@ uv run python scripts/train_gecko_detector.py --epochs 20 --batch-size 4 --accel
 ```
 디바이스: CPU·MPS·CUDA 모두 가능(속도 CUDA>MPS>CPU). recall 우선 게이트라 결과는 **임계값별 recall sweep**(`runs/<out>/gate_metrics.json`).
 
-## 현재 통계 (2026-06-25, v1)
+## 현재 통계 (2026-07-06, v2)
 
 | source | 장수 | 라벨 | split | 비고 |
 |---|---|---|---|---|
 | `crawl_breeder` | 7,830 | ✗ 미라벨 | — | 분양샵/브리더, 밝은 주간 클로즈업 312~396px |
 | `roboflow_gecko_teddychiu` | 1,430 | ✓ | train | Roboflow Universe, **Public Domain**, 주간. 외부 base |
-| `operational` | 2,034 | 일부 ✓ | train/val/test 분산 | 펫캠, positives + **negatives 445** (p4cam 야간 라운드 R0001) |
+| `operational` | 1,951 COCO | ✓ | train/val/test 분산 | 펫캠, positives + **negatives 590** (저녁/가림 라운드 R0002 포함) |
 | `crawl_google`/`crawl_nighttime`/`negative` | 0 | — | — | raw 비어있음 — 야간 hard-case 후보는 `staging/` 에 수집됨(선별·승격 대기) |
 
-- **COCO 라벨 완성**: `coco/annotations/` → train **2,149** · val **180** · test **170**(운영 전용, negative 56·야간 IR 포함).
-- **domain**: day_other 1,430 · **negative 445** · (운영 positive 160 미태깅 — recall-by-domain 분석용 추후 태깅).
-- **모델 (v1 fine-tune, RFDETRNano/MPS)**: **클립단위 test(25pos/21neg) recall@0.25 0.96 · FP 2/21** (v0 동일 test 는 FP 19/21 — neg-0 test 착시 규명). 프레임 recall@0.25 0.982·FP 8/56. → **게이트 conf 0.25**. checkpoint `runs/gecko_v1/checkpoint_best_total.pth`. 상세 [`reports/R0001`](../reports/R0001-negative-expansion-v1.md).
-  - ✅ negative 25→445 확대로 FP 실측·억제 완료. 다음 약점 = 환경 다양성(같은 펫캠·2일치).
+- **COCO 라벨 완성**: `coco/annotations/` → train **2,770** · val **311** · test **300**(운영 전용, frame 230 positive/70 negative · clip 45 positive/23 negative).
+- **domain**: negative **590**. 운영 positive의 camera/morph/IR/occlusion 태깅은 v3에서 보강한다.
+- **모델 (v2 fine-tune, RFDETRNano/MPS)**: 동일 test에서 v1→v2 frame recall@0.25 **0.800→0.983**, clip recall **0.844→0.978**. threshold 0.5에서는 clip recall 0.933·FP 3/23. checkpoint `runs/gecko_v2/checkpoint_best_ema.pth`. 상세 [`reports/R0002`](../reports/R0002-evening-recall-v2.md).
+- **다음:** [`specs/gate-v3.md`](../specs/gate-v3.md)의 human-first GT·환경 다양성·future holdout 계약을 따른다.
 
-⚠️ **도메인 갭 (여전히)**: 라벨된 1,615장 중 1,430(roboflow)+breeder 가 **주간**. 야간 IR·가림 hard-case 신호는 운영 127 + 미선별 staging 뿐 → 운영/hard-case 라벨 확대가 recall 의 핵심. **test 는 운영만**.
+⚠️ **도메인 갭 (여전히)**: COCO 3,381장 중 외부 base 1,430장은 밝은 주간 이미지이고, 운영 1,951장은 사실상 같은 카메라·사육장·개체에 편중돼 있다. v3는 장수보다 카메라·개체·모프·사육장·IR·가림 strata의 다양성과 paired hard negative를 우선한다. **test는 운영만**.
 
 ## 출처 / 라이선스
 

@@ -36,17 +36,18 @@ R2 event clip
 - [PROJECT_PLAN.md](PROJECT_PLAN.md) — 전체 기획, JSON 계약, 평가 기준, 백엔드 통합 요청안
 - [docs/MODEL_AND_TRAINING_PLAN.md](docs/MODEL_AND_TRAINING_PLAN.md) — 모델 후보, 학습자료, 학습/평가 진행 순서
 - [specs/architecture.md](specs/architecture.md) — 확정 아키텍처 (상시 prelabeler) + 구현 Phase
+- [specs/gate-v3.md](specs/gate-v3.md) — v2 최종 감사 + 사람 GT·환경 다양성·future holdout 기반 v3 SOT
 
-## 상태 (2026-06-18)
+## 상태 (2026-07-12)
 
-**Phase 1 진행 중** — 학습 데이터셋 + fine-tune 파이프라인 구축 완료.
-- 데이터: train **2,149** · val **180** · **test 170(운영 전용, negative 56·야간 IR 포함)** COCO 완성. 상세 → [datasets/README.md](datasets/README.md).
+**v2 완료, v3 설계 확정 / 실행 전.**
+- 데이터: train **2,770** · val **311** · **test 300(운영 전용, frame 230 positive/70 negative)**. 상세 → [datasets/README.md](datasets/README.md).
 - 도구: SerpApi hard-case 크롤러 · Roboflow/Label Studio COCO importer · 무결성 가드 · fine-tune 스크립트(`scripts/`), 26 pytest.
-- **RF-DETR v1 완료** (RFDETRNano, MPS) — negative 확대 라운드: **클립단위 test(25 pos/21 neg)** recall@0.25 **0.96** · FP **2/21**. v0는 같은 test에서 recall 1.00이지만 FP **19/21**(빈 클립 90% 오발동 — v0 test에 negative 0이라 그동안 미측정). → **권장 게이트 conf 0.25**, checkpoint `runs/gecko_v1/`.
-- **작동하는 게이트**: `prelabel --checkpoint runs/gecko_v1/checkpoint_best_total.pth` 로 실제 gecko 탐지(검증됨).
-- 다음: 게이트 운영 적용 · 환경/시간대 다양성 확대 · (선택) `--model small` 시도.
+- **RF-DETR v2 완료** (RFDETRNano, MPS) — 동일 test에서 v1→v2 frame recall@0.25 0.80→0.98, clip recall 0.84→0.98. FP 증가로 threshold 0.5를 잠정 운영점으로 기록했다. 상세 [R0002](reports/R0002-evening-recall-v2.md).
+- **현재 금지:** v2 결과로 VLM 자동 skip을 켜지 않는다. petcam backlog 평가는 다른 checkpoint와 Claude proxy GT를 사용해 recall 90.9%였으므로 사람 GT 기반 v2 최종 감사가 먼저다.
+- **다음:** `specs/gate-v3.md` Phase 0 — best-EMA artifact 고정, backlog 300 전체 blind GT, 카메라·개체·사육장 다양성 확대.
 
-> 핵심 교훈: v0의 "recall 1.00·FP 0"은 **test에 negative가 0**이라 생긴 착시였음. negative 25→445 확대 후 클립 FP 19→2로 실측·해결. (`runs/`는 gitignore — 모델 파일 미커밋)
+> 핵심 교훈: 데이터셋 내부 점수보다 새 운영 도메인의 사람이 확정한 GT가 우선이다. v3는 같은 카메라 점수를 더 올리는 라운드가 아니라 환경 다양성과 독립 holdout을 확보하는 라운드다.
 
 ## 설치 & 실행
 

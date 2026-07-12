@@ -11,9 +11,8 @@ RBA 파이프라인의 **Gate**: 펫캠 mp4 → "게코가 보이나?" 판단 + 
 - ⚠️ FP 핵심 원인 = 흰색(릴리화이트) 게코가 흰 인조넝쿨·관엽식물·IR 글레어와 혼동(v1 억제, v2는 recall↑ 대가로 저녁 FP 소폭 재증가 → threshold 상향으로 관리). v1(`runs/gecko_v1`)·v0(`runs/gecko_v0`) 비교용 보존. ⚠ `runs/`는 gitignore — 체크포인트·metrics 미커밋.
 
 ## ▶ 다음 작업
-**`docs/MODEL_AND_TRAINING_PLAN.md` §9 "다음 세션 로드맵"** 이 단일 출처.
-요약: 데이터 확대(① negative 100~300 ② 야간/가림 hard-case ③ 환경 다양성) → **auto-label 루프**
-(`scripts/autolabel.py` → Label Studio 교정 → 재인입 → 재학습) → recall·FP 재측정. 첫 걸음도 §9.
+**`specs/gate-v3.md`**가 최신 단일 출처다.
+요약: v2 best-EMA artifact·sampler 고정 → backlog 300 전체 human-first blind GT → 카메라·개체·사육장 다양성 + paired hard negative → v3 Nano → shadow prelabel → future holdout. Gate는 행동 분류나 VLM route를 직접 결정하지 않는다.
 
 ## 핵심 규칙
 - **데이터 안전**: `raw/` 소스별 격리, **test=운영 영상만**(§4.2 누수 금지), 외부 데이터는 train(+val)만. 변경 전 `datasets/README.md` 확인. `data/`류 덮어쓰기 전 백업.

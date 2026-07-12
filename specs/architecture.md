@@ -3,6 +3,8 @@
 > **상위 SOT**: `tera-ai-product-master/docs/specs/petcam-ai-pipeline.md §11` (Gate 레이어).
 > **기획 초안**: `PROJECT_PLAN.md` · `docs/MODEL_AND_TRAINING_PLAN.md`.
 > 본 문서 = 초안 위에 올리는 **확정 아키텍처** (2026-06-17). PROJECT_PLAN §9 "게이팅"을 "상시 prelabel"로 수정 반영.
+>
+> **2026-07-12 v3 실행 SOT:** [`gate-v3.md`](gate-v3.md). 아키텍처의 상시 prelabel 원칙은 유지하고, v2 artifact 감사 → 사람 GT → 환경 다양성 → shadow/future holdout 순서로 발전시킨다.
 
 ---
 
