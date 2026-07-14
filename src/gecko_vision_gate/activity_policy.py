@@ -33,6 +33,7 @@ class ActivityPolicy:
     roi_flow_active: float = 2.0      # ROI 내부 변화(global 보정 후) 이상이면 활동(혀/머리)
     global_motion_max: float = 3.0    # global 변화 이상이면 local/global 구분 불가 → unknown
     static_min_visible_ratio: float = 0.6   # static 확정 최소 visibility ratio
+    absent_max_global_motion: float = 3.0   # no_gecko 여도 global 이 이 이상이면 absent 단정 말고 unknown
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +75,10 @@ def decide(result: PrelabelResult, motion: MotionMetrics, policy: ActivityPolicy
 
     # 2. gecko detection 0건 + 충분한 프레임 → absent 후보
     if not result.gecko_visible:
+        # 하드닝 5: 게코 미검출이어도 global motion 이 크면 threshold 아래 게코/움직임이 있을 수 있어
+        # absent 단정은 위험(audit 실증: 0.25 no_gecko 가 실제 active) → unknown fail-open.
+        if motion.global_bg_change >= policy.absent_max_global_motion:
+            return _assess("unknown", "no_gecko_but_global_motion", result, motion, policy)
         return _assess("exclude_absent", "no_gecko_detected", result, motion, policy)
 
     # --- 여기부터 gecko visible ---

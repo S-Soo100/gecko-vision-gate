@@ -52,6 +52,20 @@ def test_absent_when_no_gecko_and_enough_frames():
     assert a.reason_code == "no_gecko_detected"
 
 
+def test_no_gecko_with_high_global_motion_is_unknown():
+    # 하드닝 5: 게코 미검출이어도 global motion 이 크면 absent 단정 위험(threshold 아래 게코일 수 있음,
+    # 이번 audit 이 실증: 0.25 no_gecko clip 이 실제 active). → unknown fail-open.
+    a = decide(_result(gecko_visible=False), _mm(visible_frame_count=0, visible_frame_ratio=0.0, global_bg_change=10.0), POLICY)
+    assert a.decision == "unknown"
+    assert a.reason_code == "no_gecko_but_global_motion"
+
+
+def test_no_gecko_low_global_motion_still_absent():
+    # 게코 미검출 + global motion 안정(빈 사육장) → absent 유지
+    a = decide(_result(gecko_visible=False), _mm(visible_frame_count=0, visible_frame_ratio=0.0, global_bg_change=0.5), POLICY)
+    assert a.decision == "exclude_absent"
+
+
 # --- unknown (fail-open) ------------------------------------------------
 def test_unknown_when_insufficient_frames():
     # decode/sample 실패로 프레임이 적으면 absent 로 몰지 않고 unknown
