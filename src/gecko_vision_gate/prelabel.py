@@ -17,6 +17,8 @@ import json
 import sys
 from pathlib import Path
 
+import numpy as np
+
 from .detector import GeckoDetector
 from .frame_sampling import sample_frames
 from .schema import DetectedObject, PrelabelResult
@@ -25,18 +27,21 @@ TARGET_CLASS = "gecko"
 MODEL_VERSION = "v0-coco"  # fine-tune 전 COCO pretrained 단계임을 명시
 
 
-def prelabel_clip(
-    video_path: str | Path,
+def prelabel_from_frames(
+    frames: list[tuple[float, np.ndarray]],
     *,
-    num_frames: int = 12,
     threshold: float = 0.5,
     model_size: str = "nano",
     checkpoint: str | None = None,
     clip_id: str | None = None,
     detector: GeckoDetector | None = None,
 ) -> PrelabelResult:
-    frames = sample_frames(video_path, num_frames)
-    # detector 주입 시 재사용(배치에서 모델 1회 로드) — 없으면 클립마다 생성(기존 CLI 동작)
+    """이미 샘플한 frames(=[(ts, bgr)])로 evidence 생성.
+
+    worker 가 frames 를 한 번만 샘플해서 prelabel(evidence)과 motion_evidence(motion)에
+    함께 쓰도록 sample_frames 를 분리한 진입점. prelabel_clip 은 이 함수의 얇은 wrapper.
+    """
+    # detector 주입 시 재사용(배치에서 모델 1회 로드) — 없으면 생성
     if detector is None:
         detector = GeckoDetector(model_size=model_size, threshold=threshold, checkpoint=checkpoint)
 
@@ -78,6 +83,28 @@ def prelabel_clip(
         skip_recommendation=True,
         skip_reason="no_gecko_detected",
         **common,
+    )
+
+
+def prelabel_clip(
+    video_path: str | Path,
+    *,
+    num_frames: int = 12,
+    threshold: float = 0.5,
+    model_size: str = "nano",
+    checkpoint: str | None = None,
+    clip_id: str | None = None,
+    detector: GeckoDetector | None = None,
+) -> PrelabelResult:
+    """mp4 → 균등 샘플 → prelabel_from_frames (기존 CLI/배치 진입점, 하위호환)."""
+    frames = sample_frames(video_path, num_frames)
+    return prelabel_from_frames(
+        frames,
+        threshold=threshold,
+        model_size=model_size,
+        checkpoint=checkpoint,
+        clip_id=clip_id,
+        detector=detector,
     )
 
 
