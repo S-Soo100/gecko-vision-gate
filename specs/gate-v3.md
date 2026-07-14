@@ -1,8 +1,17 @@
 # Gecko Vision Gate v3 — 데이터 다양성·사람 GT·안전한 활용 계획
 
-**상태:** 설계 확정 / 실행 전
+**상태:** v3 설계 확정 / v3 학습·배포 전 / v2 `activity-v1` shadow evidence 축적 중
 **작성일:** 2026-07-12
 **목적:** 여러 카메라·개체·사육환경에서 게코의 존재와 위치를 안정적으로 기록하는 evidence sensor를 만든다.
+
+## 0. 2026-07-14 운영 연결과 신뢰 경계
+
+`petcam-nightly-reporter`가 v2 best-EMA와 threshold 0.10을 사용한 `activity-v1` worker를 테스트 카메라 3대에서 1시간마다 실행한다. 이 단계는 **v3 배포가 아니라 v3를 위한 운영 evidence·hardcase 축적**이다. Gate 결과와 motion evidence는 `clip_prelabels`와 `clip_activity_assessments`에 분리 저장된다. Flutter `v0.20.1+35`는 effective activity view를 읽고, 카메라 A 한 대의 visible-static만 가역 canary로 차감한다. 전 카메라 absent와 다른 두 카메라 static은 비활성이다.
+
+- **운영 파이프라인은 신뢰:** 버전 guard, checkpoint/threshold/sampler provenance, 첫 200건 무실패, 임시 파일 정리, fail-open을 확인했다.
+- **자동 제외 정확도는 미신뢰:** no-gecko는 active 2/12를 놓쳐 REJECT, visible-static은 독립 에피소드가 약 2개뿐이라 정식 판정은 HOLD다. 카메라 A canary는 채택 승격이 아니라 사용자 위험 수용 실험이다.
+- **v3에 환류:** 카메라 B recall hardcase 2건과 카메라 A visible-static calibration 사례를 분리 보존한다. product `exclude` 라벨을 presence detector GT로 사용하지 않는다.
+- **승격 전제:** 최소 3개 날짜·30분 episode dedup·독립 static 20개 이상 사람 blind GT에서 false exclusion 0을 확인하기 전까지 정식 채택·VLM skip·미검증 카메라 확장은 금지한다. false exclusion 1건이면 카메라 A canary도 즉시 rollback한다.
 
 ## 1. 한 줄 결정
 
