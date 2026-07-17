@@ -281,3 +281,78 @@ def test_evidence_carries_version_fields(monkeypatch, video):
     ev = compute_temporal_evidence(video, None)
     assert ev.evidence_schema_version == EVIDENCE_SCHEMA_VERSION
     assert ev.algorithm_version == ALGORITHM_VERSION
+
+
+# ── H1: CROI 해상도 계약 — ROI 는 원본 crop 후 별도 bounded resize (전체 축소로 소실 금지) ──
+
+def test_croi_micro_roi_change_survives_on_1080p(monkeypatch, video):
+    """1920×1080 화면의 24×24 ROI 미세 변화가 전체 화면 256px 축소로 소실되지 않는다.
+
+    전체 프레임만 256px 로 줄이면 24px→3px 로 뭉개져 ROI 변화가 사라진다(기존 회귀). ROI 는 원본에서
+    bbox 를 먼저 crop 한 뒤 별도 resize 하므로 crop(24×24, no-upscale)에서 변화가 온전히 보존된다.
+    """
+    f0 = np.zeros((1080, 1920, 3), np.uint8)
+    f1 = f0.copy()
+    f1[500:524, 900:924] = 220  # 정확히 24×24 영역만 급변
+    _patch(monkeypatch, FakeCap([f0, f1]))
+    res = _res([_gecko(0.0, [900, 500, 24, 24]), _gecko(0.1, [900, 500, 24, 24])])
+    ev = compute_temporal_evidence(video, res)
+    assert ev.level1_status == "ok"
+    assert len(ev.roi_motion_series) == 1
+    # crop 24×24 전체가 0→220 이므로 ROI MAD 는 크다(≈220). 전체 축소였다면 ~0.06 로 소실됐을 값.
+    assert ev.roi_motion_series[0].value > 150
+    # global 은 24×24/(1920×1080) 로 극히 희석 → ROI 가 global 보다 압도적으로 큼
+    assert ev.roi_motion_series[0].value > ev.global_motion_series[0].value * 50
+    assert ev.motion_summary["local_diff_max"] > 150
+
+
+def test_croi_tiny_bbox_not_lost_to_subpixel(monkeypatch, video):
+    """1080p 화면의 작은 bbox(3×3)가 전체 축소 sub-pixel 반올림으로 ROI 자체를 잃지 않는다.
+
+    전체 프레임을 256px 로 줄이면 3×3 bbox 는 analysis 좌표계에서 0px 로 반올림돼 ROI 가 사라진다
+    (level1=no_bbox). crop-first 는 원본에서 3×3 을 그대로 crop 하므로 ROI evidence 를 보존한다.
+    """
+    f0 = np.zeros((1080, 1920, 3), np.uint8)
+    f1 = f0.copy()
+    f1[500:503, 900:903] = 220  # 3×3 영역만 변화
+    _patch(monkeypatch, FakeCap([f0, f1]))
+    res = _res([_gecko(0.0, [900, 500, 3, 3]), _gecko(0.1, [900, 500, 3, 3])])
+    ev = compute_temporal_evidence(video, res)
+    assert ev.level1_status == "ok"  # 구(전체 축소) 구현은 no_bbox 로 소실
+    assert len(ev.roi_motion_series) == 1
+    assert ev.roi_motion_series[0].value > 150  # 3×3 crop 전체 변화 보존
+
+
+def test_croi_roi_resize_no_upscale(monkeypatch, video):
+    # 작은 bbox(20×20)는 upscale 하지 않는다 — resize 로 인한 가짜 신호 없음. 상수 crop → ROI MAD 0.
+    frames = [np.full((300, 300, 3), 40, np.uint8), np.full((300, 300, 3), 40, np.uint8)]
+    _patch(monkeypatch, FakeCap(frames))
+    res = _res([_gecko(0.0, [10, 10, 20, 20]), _gecko(0.1, [10, 10, 20, 20])])
+    ev = compute_temporal_evidence(video, res)
+    assert ev.level1_status == "ok"
+    assert ev.roi_motion_series[0].value == 0.0  # 변화 없음 → upscale 노이즈도 없음
+
+
+# ── H6: dwell dedup(같은 ts 최고 conf 1건) + fps fallback 명시 ──
+
+def test_dwell_dedups_same_timestamp_to_highest_conf(monkeypatch, video):
+    frames = [_frame(0), _frame(20)]
+    _patch(monkeypatch, FakeCap(frames))
+    # ts=0.0 에 detection 2건(conf 0.5, 0.9) + ts=1.0 1건 → 관찰은 ts 당 1개 = 2개
+    objs = [_gecko(0.0, [10, 10, 20, 20], conf=0.5), _gecko(0.0, [80, 80, 20, 20], conf=0.9),
+            _gecko(1.0, [10, 10, 20, 20], conf=0.7)]
+    res = _res(objs)
+    ev = compute_temporal_evidence(video, res)
+    assert ev.spatial_dwell["n_observations"] == 2  # 3건 아님(같은 ts dedup)
+
+
+def test_fps_fallback_flag(monkeypatch, video):
+    # fps 메타가 깨짐(<=0) → 30 폴백 + fps_fallback True
+    _patch(monkeypatch, FakeCap([_frame(0), _frame(30)], fps=0.0))
+    ev = compute_temporal_evidence(video, None)
+    assert ev.motion_summary["fps"] == 30.0
+    assert ev.motion_summary["fps_fallback"] is True
+    # 정상 fps → False
+    _patch(monkeypatch, FakeCap([_frame(0), _frame(30)], fps=10.0))
+    ev2 = compute_temporal_evidence(video, None)
+    assert ev2.motion_summary["fps_fallback"] is False

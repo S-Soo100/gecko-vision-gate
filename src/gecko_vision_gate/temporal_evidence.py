@@ -12,6 +12,14 @@ MAD(mean absolute difference) 시계열, 4×4 공간 dwell, numeric periodicity,
 
 TS 로 치면: 영상 스트림을 chunk 로 흘리며 이전 프레임 1장만 들고 diff 를 누적하는 reducer.
 전체를 배열에 담지 않아 60초 4K 여도 메모리가 터지지 않는다.
+
+CROI 해상도 계약 (S1R2 benchmark vs production 구현 차이):
+  - S1R2 CROI benchmark(petcam-lab `scripts/benchmark_python_evidence_s1.py`)는 처리량 측정용 경로로,
+    ROI 를 원본 bbox 에서 crop 해 미세 접촉 신호를 native 해상도로 본다(CROI = Cropped ROI).
+  - production 구현(이 모듈)은 두 스트림을 **분리**한다: global 은 전체 프레임 긴 변 256px 축소(배경/전역
+    모션의 저비용 요약), ROI 는 원본에서 bbox 를 먼저 crop 한 뒤 **별도로** 긴 변 ≤256px 로 bounded resize
+    (no-upscale). 그래서 작은 bbox 가 전역 축소 배율에 종속돼 sub-pixel 로 소실되지 않는다.
+  - bounded memory: prev_global(≤256²) + prev_roi(≤256²) 두 장만 유지. 전체 프레임 배열은 보유하지 않는다.
 """
 
 from __future__ import annotations
@@ -92,19 +100,36 @@ def _union_gecko_bbox(result: PrelabelResult | None) -> list[int] | None:
     return [x1, y1, x2 - x1, y2 - y1]
 
 
-def _roi_in_analysis(bbox: list[int], scale: float, aw: int, ah: int) -> tuple[int, int, int, int] | None:
-    """원본 bbox → 분석 grayscale 좌표계 ROI(clamp). 유효 영역 없으면 None(→ no_bbox)."""
-    x = int(round(bbox[0] * scale))
-    y = int(round(bbox[1] * scale))
-    w = int(round(bbox[2] * scale))
-    h = int(round(bbox[3] * scale))
-    x1 = max(0, min(x, aw))
-    y1 = max(0, min(y, ah))
-    x2 = max(0, min(x + w, aw))
-    y2 = max(0, min(y + h, ah))
+def _clamp_bbox(bbox: list[int], w: int, h: int) -> tuple[int, int, int, int] | None:
+    """원본 bbox 를 프레임 경계로 clamp 한 [x,y,w,h]. 유효 영역 없으면 None(→ no_bbox).
+
+    H1(CROI): ROI 는 **원본 좌표계** 에서 clamp 한다(전체 축소 좌표계 아님). 이렇게 해야 작은 bbox 가
+    전체 축소 sub-pixel 반올림으로 사라지지 않고 원본에서 그대로 crop 된다.
+    """
+    x1 = max(0, min(bbox[0], w))
+    y1 = max(0, min(bbox[1], h))
+    x2 = max(0, min(bbox[0] + bbox[2], w))
+    y2 = max(0, min(bbox[1] + bbox[3], h))
     if x2 <= x1 or y2 <= y1:
         return None
     return x1, y1, x2 - x1, y2 - y1
+
+
+def _roi_gray(frame, cbbox: tuple[int, int, int, int]):
+    """원본 프레임에서 bbox 를 crop → grayscale → 긴 변 ≤256 로 별도 bounded resize(no-upscale).
+
+    H1(CROI): global 은 전체 프레임 축소를 쓰지만, ROI 는 원본 crop 을 **독립적으로** resize 해서
+    global 축소 배율에 ROI 해상도가 종속되지 않게 한다(미세 접촉 신호 보존).
+    """
+    x, y, w, h = cbbox
+    crop = frame[y:y + h, x:x + w]
+    g = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    ch, cw = g.shape[:2]
+    s = _analysis_scale(cw, ch)  # 긴 변 ≤256, no-upscale
+    if s != 1.0:
+        g = cv2.resize(g, (max(1, int(round(cw * s))), max(1, int(round(ch * s)))),
+                       interpolation=cv2.INTER_AREA)
+    return g
 
 
 class _Decimator:
@@ -154,22 +179,24 @@ def _spatial_dwell(result: PrelabelResult | None, w: int, h: int) -> dict:
     if result is None or w <= 0 or h <= 0:
         return base
 
-    obs: list[tuple[float, int, int]] = []  # (ts, row, col)
-    seen: dict[float, tuple[float, float]] = {}  # ts → (conf, center 를 위해) 최고 conf 만
+    # H6: 같은 ts 에 gecko detection 이 여러 개면 **최고 confidence 1건만** dwell 에 쓴다(중복 방지).
+    # ts → (conf, row, col) 로 최고 conf 만 남긴 뒤 관찰 목록을 만든다(ts 당 1 관찰).
+    best_per_ts: dict[float, tuple[float, int, int]] = {}
     for o in result.detected_objects:
         if o.type != TARGET_CLASS:
             continue
-        prev = seen.get(o.frame_ts)
+        cx = (o.bbox[0] + o.bbox[2] / 2.0) / w
+        cy = (o.bbox[1] + o.bbox[3] / 2.0) / h
+        col = min(_GRID - 1, max(0, int(cx * _GRID)))
+        row = min(_GRID - 1, max(0, int(cy * _GRID)))
+        prev = best_per_ts.get(o.frame_ts)
         if prev is None or o.confidence > prev[0]:
-            cx = (o.bbox[0] + o.bbox[2] / 2.0) / w
-            cy = (o.bbox[1] + o.bbox[3] / 2.0) / h
-            col = min(_GRID - 1, max(0, int(cx * _GRID)))
-            row = min(_GRID - 1, max(0, int(cy * _GRID)))
-            seen[o.frame_ts] = (o.confidence, 0.0)
-            obs.append((o.frame_ts, row, col))
-    if not obs:
+            best_per_ts[o.frame_ts] = (o.confidence, row, col)
+    if not best_per_ts:
         return base
-    obs.sort(key=lambda x: x[0])
+    obs: list[tuple[float, int, int]] = [
+        (ts, rc[1], rc[2]) for ts, rc in sorted(best_per_ts.items())
+    ]
     base["n_observations"] = len(obs)
 
     # 관찰 간 시간 배분. 간극 상한 = 관찰 간격 중앙값의 3배(최소 2초)이되, **절대 상한 10초**로 clamp.
@@ -290,15 +317,23 @@ def compute_temporal_evidence(
     decoded = 0
     orig_w = orig_h = 0
     fps = 30.0
+    fps_fallback = False
     opened = False
     try:
         opened = cap.isOpened()
         if opened:
             f = cap.get(cv2.CAP_PROP_FPS)
-            fps = float(f) if f and f > 0 else 30.0  # 깨진 메타 폴백
-            prev_gray = None
+            if f and f > 0:
+                fps = float(f)
+            else:
+                fps = 30.0  # 깨진 메타 폴백 → provenance/metadata 에 명시(H6)
+                fps_fallback = True
             scale = 1.0
-            roi = None
+            aw = ah = 0
+            cbbox = None  # 원본 좌표계 clamp 된 union bbox (CROI crop 대상)
+            # H1(CROI): global 과 ROI 는 **독립 grayscale 스트림**. prev 두 장만 유지(bounded memory).
+            prev_global = None
+            prev_roi = None
             while True:
                 ok, frame = cap.read()
                 if not ok:
@@ -310,28 +345,30 @@ def compute_temporal_evidence(
                     aw = max(1, int(round(orig_w * scale)))
                     ah = max(1, int(round(orig_h * scale)))
                     if union_bbox is not None:
-                        roi = _roi_in_analysis(union_bbox, scale, aw, ah)
-                # 분석용 축소 grayscale (BGR 원본은 보관 안 함)
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                if scale != 1.0:
-                    gray = cv2.resize(gray, (aw, ah), interpolation=cv2.INTER_AREA)
+                        cbbox = _clamp_bbox(union_bbox, orig_w, orig_h)
                 ts = (decoded - 1) / fps
-                if prev_gray is not None and gray.shape == prev_gray.shape:
-                    d = cv2.absdiff(gray, prev_gray)
-                    g_val = float(d.mean())
+                # ── global: 전체 프레임 긴 변 256px 축소 grayscale (BGR 원본 미보관) ──
+                g_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                if scale != 1.0:
+                    g_gray = cv2.resize(g_gray, (aw, ah), interpolation=cv2.INTER_AREA)
+                g_val = None
+                if prev_global is not None and g_gray.shape == prev_global.shape:
+                    g_val = float(cv2.absdiff(g_gray, prev_global).mean())
                     g_dec.offer(ts, g_val)
-                    if roi is not None:
-                        rx, ry, rw, rh = roi
-                        patch = d[ry:ry + rh, rx:rx + rw]
-                        if patch.size:
-                            roi_active = True
-                            r_val = float(patch.mean())
-                            r_dec.offer(ts, r_val)
-                            ld = max(0.0, r_val - g_val)
-                            local_diff_max = max(local_diff_max, ld)
-                            local_diff_sum += ld
-                            local_diff_n += 1
-                prev_gray = gray
+                prev_global = g_gray
+                # ── ROI: 원본에서 bbox crop 후 별도 bounded resize (global 축소와 독립) ──
+                if cbbox is not None:
+                    r_gray = _roi_gray(frame, cbbox)
+                    if prev_roi is not None and r_gray.shape == prev_roi.shape and r_gray.size:
+                        r_val = float(cv2.absdiff(r_gray, prev_roi).mean())
+                        r_dec.offer(ts, r_val)
+                        roi_active = True
+                        gb = g_val if g_val is not None else 0.0
+                        ld = max(0.0, r_val - gb)  # local diff = max(0, roi-global)
+                        local_diff_max = max(local_diff_max, ld)
+                        local_diff_sum += ld
+                        local_diff_n += 1
+                    prev_roi = r_gray
     finally:
         cap.release()
 
@@ -364,6 +401,7 @@ def compute_temporal_evidence(
     motion_summary = {
         "duration_sec": duration,
         "fps": round(fps, 3),
+        "fps_fallback": fps_fallback,  # fps 메타가 깨져 30 으로 폴백했는지(H6)
         "decoded_frame_count": decoded,
         "width": orig_w or None,
         "height": orig_h or None,
