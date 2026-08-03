@@ -1,14 +1,13 @@
 # gecko-vision-gate
 
-RBA 파이프라인에서 Claude 분석 전에 도마뱀이 보이는지 확인하고 시각 단서를 뽑는 Python prelabel 프로젝트.
+RBA 파이프라인에서 게코 검출·추적 단서를 공급하고 Gecko Motion Engine(GME) shadow 코어를 제공하는 프로젝트.
 
 ```text
 R2 event clip
 → gecko-vision-gate
 → clip_prelabels JSON
-→ Claude RBA Worker
-→ analysis_events
-→ daily_reports
+→ GME tracker / media QA
+→ candidate 움직임 시간 + 추적 품질
 ```
 
 ## 역할
@@ -22,13 +21,18 @@ R2 event clip
 - best_frame_ts 선택
 - gecko_bbox 추출
 - detected_objects JSON 출력
+- 최대 30fps 순차 분석과 다중 게코 trajectory 생성
+- observed/tracked/interpolated/unknown provenance 분리
+- moving/static/unknown/camera_motion candidate 구간 계산
 
 하지 않는 일:
 - drinking 확정
 - feeding 확정
 - defecating 확정
 - 건강 상태 판단
-- Claude 호출
+- VLM 호출 여부 결정
+- 사용자 활동시간 교체
+- 자동 skip·원본 삭제
 ```
 
 ## 문서
@@ -61,4 +65,8 @@ uv run python -m gecko_vision_gate.prelabel \
 # 옵션: --frames 12 --threshold 0.5 --model-size nano|small|medium
 
 uv run pytest                 # 유닛테스트
+
+# GME 단일 클립 shadow 분석(경로는 출력하지 않고 redacted summary만 표시)
+uv run gecko-gme --input path/to/clip.mp4 \
+  --checkpoint runs/gecko_v2/checkpoint_best_ema.pth --threshold 0.5
 ```

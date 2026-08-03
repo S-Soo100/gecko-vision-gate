@@ -5,6 +5,11 @@
 > 본 문서 = 초안 위에 올리는 **확정 아키텍처** (2026-06-17). PROJECT_PLAN §9 "게이팅"을 "상시 prelabel"로 수정 반영.
 >
 > **2026-07-12 v3 실행 SOT:** [`gate-v3.md`](gate-v3.md). 아키텍처의 상시 prelabel 원칙은 유지하고, v2 artifact 감사 → 사람 GT → 환경 다양성 → shadow/future holdout 순서로 발전시킨다.
+>
+> **2026-08-03 GME 확장:** detector 출력은 `timestamp+bbox/confidence+model/checkpoint/schema` 계약으로
+> GME에 공급된다. GME는 한 번의 순차 decode에서 다중 개체 추적·카메라 변화 분리·candidate 움직임
+> 시간을 만들지만 행동명·VLM route·자동 skip·사용자 활동시간은 결정하지 않는다. 검출 실패는
+> `not_visible/static`으로 꾸미지 않고 `unknown`으로 보존한다.
 
 ---
 

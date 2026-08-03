@@ -27,5 +27,6 @@ gecko-vision-gate 의 연구 라운드별 성과를 **누적 기록**한다. **�
 ## 리포트 목록 (최신순)
 | 번호 | 날짜 | 제목 | 핵심 결과 | 상태 |
 |---|---|---|---|---|
+| [R0004](./R0004-gme-shadow-v0.md) | 2026-08-03 | GME production shadow v0 코어 | 단일 decode·다중 track·provenance·candidate 시간 계약, 104 tests | ✅확정 |
 | [R0002](./R0002-evening-recall-v2.md) | 2026-07-06 | 저녁 데이터 확대 → v2 | frame recall@0.25 0.80→0.98 · FP↑ → conf 0.5 상향 | ✅확정 |
 | [R0001](./R0001-negative-expansion-v1.md) | 2026-06-25 | negative 확대 → v1 | 클립 FP 19→2 · recall@0.25 0.96 유지 | ✅확정 |
