@@ -70,3 +70,29 @@ uv run pytest                 # 유닛테스트
 uv run gecko-gme --input path/to/clip.mp4 \
   --checkpoint runs/gecko_v2/checkpoint_best_ema.pth --threshold 0.5
 ```
+
+### 촬영 서버용 3상태 Python wrapper
+
+```python
+from gecko_vision_gate.gme_presence import analyze_presence_with_gate
+
+result = analyze_presence_with_gate(
+    "/absolute/path/to/clip.mp4",
+    checkpoint="/absolute/path/to/checkpoint_best_ema.pth",
+    threshold=0.5,
+    model_size="nano",
+)
+payload = result.to_dict()
+
+match result.decision:
+    case "detected_candidate":
+        destination = "A"  # Gate가 게코 후보를 직접 관측함
+    case "not_observed":
+        destination = "B_REVIEW"  # 게코 부재 확정이 아니라 미관측
+    case "unresolved":
+        destination = "RETRY_OR_QUARANTINE"
+```
+
+`not_observed`를 원본 삭제나 영구 제외 근거로 사용하지 않는다. `unresolved`도 B에 합치지 않는다.
+결과에는 모델·checkpoint SHA-256·threshold·frame 수·unknown/camera-motion 시간이 포함되고,
+입력 영상 경로와 credential은 포함되지 않는다.
