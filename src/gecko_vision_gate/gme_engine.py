@@ -15,7 +15,8 @@ ENGINE_SCHEMA_VERSION = "gme-shadow-v1"
 ALGORITHM_VERSION = "gme-motion-v0"
 
 
-def _detector_identity(detector: Detector) -> str:
+def detector_identity(detector: Detector) -> str:
+    """검출기 실행 계약 전체를 GME 원장용 단일 지문으로 묶는다."""
     raw = "|".join((detector.model_name, detector.model_version, detector.checkpoint_sha256, detector.schema_version, str(detector.threshold)))
     return hashlib.sha256(raw.encode()).hexdigest()
 
@@ -28,7 +29,7 @@ def analyze_clip(
     tracker: MultiGeckoTracker | None = None,
 ) -> GMEAnalysis:
     cap = cv2.VideoCapture(str(video_path))
-    identity = ArtifactIdentity(ENGINE_SCHEMA_VERSION, ALGORITHM_VERSION, _detector_identity(detector))
+    identity = ArtifactIdentity(ENGINE_SCHEMA_VERSION, ALGORITHM_VERSION, detector_identity(detector))
     decoded = analyzed = 0
     source_fps: float | None = None
     points = []
