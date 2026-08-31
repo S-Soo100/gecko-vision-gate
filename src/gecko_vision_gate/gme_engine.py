@@ -9,6 +9,7 @@ import cv2
 
 from .gme_contracts import ArtifactIdentity, Detector, GMEAnalysis, GMEConfig, TrackingQuality
 from .gme_motion import aggregate_states, classify_track_motion, detect_camera_motion, detect_exposure_change
+from .gme_temporal import AnalysisClock, TemporalDetectionGate
 from .gme_tracker import MultiGeckoTracker, interpolate_short_gaps
 
 ENGINE_SCHEMA_VERSION = "gme-shadow-v1"
@@ -17,6 +18,9 @@ ALGORITHM_VERSION = "gme-motion-v0"
 
 def detector_identity(detector: Detector) -> str:
     """검출기 실행 계약 전체를 GME 원장용 단일 지문으로 묶는다."""
+    execution_identity = getattr(detector, "execution_identity", None)
+    if execution_identity is not None:
+        return str(execution_identity)
     raw = "|".join((detector.model_name, detector.model_version, detector.checkpoint_sha256, detector.schema_version, str(detector.threshold)))
     return hashlib.sha256(raw.encode()).hexdigest()
 
@@ -41,6 +45,11 @@ def analyze_clip(
     need_redetection = True
     next_anchor = 0.0
     last_timestamp = 0.0
+    analysis_clock = AnalysisClock(max_analysis_fps=config.analysis_fps)
+    temporal_gate = TemporalDetectionGate(
+        window_frames=config.detection_window_frames,
+        min_positive_frames=config.detection_min_positive_frames,
+    )
     try:
         if not cap.isOpened():
             return GMEAnalysis("invalid_metadata", 0.0, 0, 0, None, (), (), 0, 0, 0, 0, 0, 0, TrackingQuality.empty(), identity)
@@ -48,7 +57,6 @@ def analyze_clip(
         if fps <= 0 or fps != fps:
             return GMEAnalysis("invalid_metadata", 0.0, 0, 0, None, (), (), 0, 0, 0, 0, 0, 0, TrackingQuality.empty(), identity)
         source_fps = fps
-        analysis_stride = max(1, int(round(fps / config.analysis_fps)))
         while True:
             ok, frame = cap.read()
             if not ok:
@@ -57,7 +65,7 @@ def analyze_clip(
             decoded += 1
             timestamp = frame_index / fps
             last_timestamp = timestamp
-            if frame_index % analysis_stride != 0:
+            if not analysis_clock.accept(frame_index, fps):
                 continue
             analyzed += 1
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -74,12 +82,14 @@ def analyze_clip(
             if exposure_change:
                 # 전환 프레임 optical-flow/bbox는 다음 프레임의 움직임 기준으로 쓰지 않는다.
                 tracker.reset()
+                temporal_gate.reset()
                 previous_by_track.clear()
                 current = ()
                 need_redetection = True
-            elif need_redetection or timestamp + 1e-9 >= next_anchor:
+            elif config.detector_every_analysis_frame or need_redetection or timestamp + 1e-9 >= next_anchor:
                 detections = detector.detect(frame, timestamp)
-                current = tracker.update_anchor(detections, frame.shape)
+                accepted = temporal_gate.push(detections)
+                current = tracker.update_anchor(accepted, frame.shape)
                 need_redetection = False
                 next_anchor = timestamp + config.anchor_interval_sec
             elif previous_gray is not None:

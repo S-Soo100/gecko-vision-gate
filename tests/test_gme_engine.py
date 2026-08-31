@@ -74,6 +74,20 @@ def test_engine_limits_analysis_clock_to_30fps(monkeypatch):
     assert result.analyzed_frame_count == 31
 
 
+def test_v26_engine_analyzes_exact_10fps_grid_and_detects_every_selected_frame(monkeypatch):
+    frames = [np.zeros((40, 40, 3), dtype=np.uint8) for _ in range(26)]
+    cap = FakeCapture(frames, 25.0)
+    detector = FakeDetector([])
+    monkeypatch.setattr("gecko_vision_gate.gme_engine.cv2.VideoCapture", lambda _: cap)
+
+    result = analyze_clip("clip.mp4", detector=detector, config=GMEConfig.v26())
+
+    assert result.decoded_frame_count == 26
+    assert result.analyzed_frame_count == 11
+    assert detector.calls == [0.0, 0.12, 0.2, 0.32, 0.4, 0.52, 0.6, 0.72, 0.8, 0.92, 1.0]
+    assert cap.released is True
+
+
 def test_engine_releases_capture_and_marks_empty_video_terminal(monkeypatch):
     cap = FakeCapture([], 30.0)
     detector = FakeDetector([])

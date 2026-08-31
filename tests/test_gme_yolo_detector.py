@@ -8,6 +8,10 @@ import pytest
 
 V25_BYTES = b"verified-yolo26n-v25"
 V25_SHA = hashlib.sha256(V25_BYTES).hexdigest()
+V26_SHA = "a00e5a7a1e1f9197accb036339a38a7c821f03c8ab79611ebce89e5cde59b513"
+V26_IDENTITY = "89e4738a60ebb71900e05e96f5b7262e8b900f5c9bba9b9cb9e34fca36f789b7"
+V25_PRODUCTION_SHA = "2b128f105e898bc472ed66861583ab80007dae6e94b291db497d7a2f8081f84a"
+V25_PRODUCTION_IDENTITY = "d4654168af21d26697ab1bd9a5dc4a05bd92baf5c9328800915cc347803d05b6"
 
 
 class _Tensor:
@@ -144,3 +148,77 @@ def test_detect_rejects_result_count_mismatch(tmp_path):
 
     with pytest.raises(ValueError, match="exactly one result"):
         detector.detect(np.zeros((4, 4, 3), dtype=np.uint8), 0.0)
+
+
+def test_v26_execution_identity_uses_the_full_frozen_contract():
+    from gecko_vision_gate.gme_engine import detector_identity
+    from gecko_vision_gate.gme_yolo_detector import YoloGMEAdapter
+
+    detector = YoloGMEAdapter(
+        model=_Model(_Result(None)),
+        checkpoint_sha=V26_SHA,
+        model_version="v2.6-warm-start-s28",
+        raw_confidence=0.001,
+        score_threshold=0.15,
+        image_size=960,
+        nms_iou=0.70,
+        post_nms_iou=0.55,
+        max_detections=50,
+        analysis_fps=10.0,
+        temporal_window_frames=5,
+        temporal_min_positive_frames=3,
+        device="mps",
+    )
+
+    assert detector.execution_identity == V26_IDENTITY
+    assert detector_identity(detector) == V26_IDENTITY
+
+
+def test_v25_legacy_identity_remains_unchanged():
+    from gecko_vision_gate.gme_engine import detector_identity
+    from gecko_vision_gate.gme_yolo_detector import YoloGMEAdapter
+
+    detector = YoloGMEAdapter(
+        model=_Model(_Result(None)),
+        checkpoint_sha=V25_PRODUCTION_SHA,
+        raw_confidence=0.001,
+        score_threshold=0.20,
+        image_size=960,
+        nms_iou=0.70,
+        max_detections=50,
+        device="mps",
+    )
+
+    assert detector_identity(detector) == V25_PRODUCTION_IDENTITY
+
+
+def test_post_nms_suppresses_overlapping_lower_score_box(tmp_path):
+    from gecko_vision_gate.gme_yolo_detector import build_yolo_detector
+
+    model = _Model(
+        _Result(
+            _Boxes(
+                xywh=[[50.0, 50.0, 20.0, 20.0], [51.0, 51.0, 20.0, 20.0], [90.0, 90.0, 10.0, 10.0]],
+                confidence=[0.91, 0.80, 0.70],
+                class_ids=[0.0, 0.0, 0.0],
+            )
+        )
+    )
+    detector = build_yolo_detector(
+        checkpoint=_checkpoint(tmp_path),
+        expected_sha256=V25_SHA,
+        model_version="v2.6-warm-start-s28",
+        score_threshold=0.15,
+        post_nms_iou=0.55,
+        analysis_fps=10.0,
+        temporal_window_frames=5,
+        temporal_min_positive_frames=3,
+        model_factory=lambda _path: model,
+    )
+
+    detections = detector.detect(np.zeros((120, 120, 3), dtype=np.uint8), 0.0)
+
+    assert [(row.confidence, row.bbox_xywh) for row in detections] == [
+        (0.91, (50.0, 50.0, 20.0, 20.0)),
+        (0.70, (90.0, 90.0, 10.0, 10.0)),
+    ]

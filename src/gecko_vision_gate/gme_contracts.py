@@ -129,17 +129,44 @@ class ArtifactIdentity:
 class GMEConfig:
     analysis_fps: float = 30.0
     anchor_interval_sec: float = 0.5
+    detection_window_frames: int = 1
+    detection_min_positive_frames: int = 1
+    detector_every_analysis_frame: bool = False
     max_interpolation_gap_sec: float = 1.0
     moving_threshold_body_lengths: float = 0.08
     camera_motion_threshold_norm: float = 0.015
     tracker_confidence_floor: float = 0.35
     timestamp_overlay_height_ratio: float = 0.12
 
+    @classmethod
+    def v26(cls) -> "GMEConfig":
+        return cls(
+            analysis_fps=10.0,
+            anchor_interval_sec=0.1,
+            detection_window_frames=5,
+            detection_min_positive_frames=3,
+            detector_every_analysis_frame=True,
+        )
+
     def __post_init__(self) -> None:
         if not (0 < self.analysis_fps <= 30):
             raise ValueError("analysis_fps must be in (0,30]")
         if not (0 < self.anchor_interval_sec <= 10):
             raise ValueError("invalid anchor interval")
+        if (
+            not isinstance(self.detection_window_frames, int)
+            or isinstance(self.detection_window_frames, bool)
+            or self.detection_window_frames <= 0
+        ):
+            raise ValueError("invalid detection window")
+        if (
+            not isinstance(self.detection_min_positive_frames, int)
+            or isinstance(self.detection_min_positive_frames, bool)
+            or not 1 <= self.detection_min_positive_frames <= self.detection_window_frames
+        ):
+            raise ValueError("invalid detection minimum")
+        if not isinstance(self.detector_every_analysis_frame, bool):
+            raise ValueError("detector_every_analysis_frame must be bool")
         if not (0 <= self.max_interpolation_gap_sec <= 1.0):
             raise ValueError("interpolation gap must be in [0,1]")
         if not (0 <= self.tracker_confidence_floor <= 1):

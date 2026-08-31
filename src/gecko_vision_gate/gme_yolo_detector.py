@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from pathlib import Path
 from typing import Callable
@@ -24,14 +26,47 @@ class YoloGMEAdapter:
         nms_iou: float,
         max_detections: int,
         device: str,
+        model_version: str = "v2.5-warm-start",
+        post_nms_iou: float | None = None,
+        analysis_fps: float | None = None,
+        temporal_window_frames: int | None = None,
+        temporal_min_positive_frames: int | None = None,
     ) -> None:
         if not 0 <= raw_confidence <= score_threshold <= 1:
             raise ValueError("invalid YOLO confidence contract")
         if image_size < 1 or max_detections < 1 or not 0 <= nms_iou <= 1:
             raise ValueError("invalid YOLO inference contract")
+        if not model_version.strip():
+            raise ValueError("blank YOLO model version")
+        extended_values = (
+            post_nms_iou,
+            analysis_fps,
+            temporal_window_frames,
+            temporal_min_positive_frames,
+        )
+        uses_extended_contract = model_version != "v2.5-warm-start" or any(value is not None for value in extended_values)
+        if uses_extended_contract and any(value is None for value in extended_values):
+            raise ValueError("incomplete YOLO execution contract")
+        if post_nms_iou is not None and not 0 <= post_nms_iou <= 1:
+            raise ValueError("invalid post NMS IoU")
+        if analysis_fps is not None and (not math.isfinite(analysis_fps) or analysis_fps <= 0):
+            raise ValueError("invalid analysis fps")
+        if temporal_window_frames is not None and (
+            not isinstance(temporal_window_frames, int)
+            or isinstance(temporal_window_frames, bool)
+            or temporal_window_frames <= 0
+        ):
+            raise ValueError("invalid temporal window")
+        if temporal_min_positive_frames is not None and (
+            not isinstance(temporal_min_positive_frames, int)
+            or isinstance(temporal_min_positive_frames, bool)
+            or temporal_window_frames is None
+            or not 1 <= temporal_min_positive_frames <= temporal_window_frames
+        ):
+            raise ValueError("invalid temporal minimum")
         self._model = model
         self.model_name = "yolo26n"
-        self.model_version = "v2.5-warm-start"
+        self.model_version = model_version
         self.checkpoint_sha256 = checkpoint_sha
         self.schema_version = SCHEMA_VERSION
         self.threshold = score_threshold
@@ -40,6 +75,26 @@ class YoloGMEAdapter:
         self.nms_iou = nms_iou
         self.max_detections = max_detections
         self.device = device
+        self.post_nms_iou = post_nms_iou
+        if uses_extended_contract:
+            self.execution_contract = {
+                "schema": "gme-yolo-execution-v2",
+                "model_name": self.model_name,
+                "model_version": self.model_version,
+                "checkpoint_sha256": self.checkpoint_sha256,
+                "detector_schema_version": self.schema_version,
+                "raw_confidence": self.raw_confidence,
+                "score_threshold": self.threshold,
+                "image_size": self.image_size,
+                "model_nms_iou": self.nms_iou,
+                "post_nms_iou": self.post_nms_iou,
+                "max_detections": self.max_detections,
+                "analysis_fps": analysis_fps,
+                "temporal_window_frames": temporal_window_frames,
+                "temporal_min_positive_frames": temporal_min_positive_frames,
+            }
+            canonical = json.dumps(self.execution_contract, sort_keys=True, separators=(",", ":"))
+            self.execution_identity = hashlib.sha256(canonical.encode()).hexdigest()
 
     def detect(self, frame_bgr: np.ndarray, timestamp_sec: float) -> tuple[Detection, ...]:
         raw_results = self._model.predict(
@@ -82,7 +137,31 @@ class YoloGMEAdapter:
                     class_name="gecko",
                 )
             )
-        return tuple(sorted(accepted, key=lambda item: (-item.confidence, item.bbox_xywh)))
+        ordered = sorted(accepted, key=lambda item: (-item.confidence, item.bbox_xywh))
+        if self.post_nms_iou is None:
+            return tuple(ordered)
+        selected: list[Detection] = []
+        for candidate in ordered:
+            if all(_center_xywh_iou(candidate.bbox_xywh, kept.bbox_xywh) <= self.post_nms_iou for kept in selected):
+                selected.append(candidate)
+        return tuple(selected)
+
+
+def _center_xywh_iou(
+    left: tuple[float, float, float, float],
+    right: tuple[float, float, float, float],
+) -> float:
+    """Ultralytics ``boxes.xywh``(center x/y)를 기준으로 post NMS를 재현한다."""
+
+    lx, ly, lw, lh = left
+    rx, ry, rw, rh = right
+    left_x1, left_y1 = lx - lw / 2, ly - lh / 2
+    right_x1, right_y1 = rx - rw / 2, ry - rh / 2
+    intersection_w = max(0.0, min(lx + lw / 2, rx + rw / 2) - max(left_x1, right_x1))
+    intersection_h = max(0.0, min(ly + lh / 2, ry + rh / 2) - max(left_y1, right_y1))
+    intersection = intersection_w * intersection_h
+    union = lw * lh + rw * rh - intersection
+    return intersection / union if union > 0 else 0.0
 
 
 def build_yolo_detector(
@@ -95,6 +174,11 @@ def build_yolo_detector(
     nms_iou: float = 0.70,
     max_detections: int = 50,
     device: str = "mps",
+    model_version: str = "v2.5-warm-start",
+    post_nms_iou: float | None = None,
+    analysis_fps: float | None = None,
+    temporal_window_frames: int | None = None,
+    temporal_min_positive_frames: int | None = None,
     model_factory: Callable[[str], object] | None = None,
 ) -> YoloGMEAdapter:
     path = Path(checkpoint)
@@ -115,4 +199,9 @@ def build_yolo_detector(
         nms_iou=nms_iou,
         max_detections=max_detections,
         device=device,
+        model_version=model_version,
+        post_nms_iou=post_nms_iou,
+        analysis_fps=analysis_fps,
+        temporal_window_frames=temporal_window_frames,
+        temporal_min_positive_frames=temporal_min_positive_frames,
     )
