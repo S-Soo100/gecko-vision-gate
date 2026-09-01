@@ -9,7 +9,7 @@ import pytest
 V25_BYTES = b"verified-yolo26n-v25"
 V25_SHA = hashlib.sha256(V25_BYTES).hexdigest()
 V26_SHA = "a00e5a7a1e1f9197accb036339a38a7c821f03c8ab79611ebce89e5cde59b513"
-V26_IDENTITY = "89e4738a60ebb71900e05e96f5b7262e8b900f5c9bba9b9cb9e34fca36f789b7"
+V26_IDENTITY = "deccfc8315d3c00edb5bf59db3c573dca568e9d6d7a5da8d7dc93d2082bdb899"
 V25_PRODUCTION_SHA = "2b128f105e898bc472ed66861583ab80007dae6e94b291db497d7a2f8081f84a"
 V25_PRODUCTION_IDENTITY = "d4654168af21d26697ab1bd9a5dc4a05bd92baf5c9328800915cc347803d05b6"
 
@@ -95,8 +95,8 @@ def test_detect_uses_frozen_inference_contract_and_filters_score_boundary(tmp_pa
     detections = detector.detect(frame, 1.5)
 
     assert [(item.confidence, item.bbox_xywh, item.class_name) for item in detections] == [
-        (0.91, (50.0, 60.0, 14.0, 16.0), "gecko"),
-        (0.20, (30.0, 40.0, 10.0, 12.0), "gecko"),
+        (0.91, (43.0, 52.0, 14.0, 16.0), "gecko"),
+        (0.20, (25.0, 34.0, 10.0, 12.0), "gecko"),
     ]
     assert model.calls == [
         {
@@ -115,6 +115,34 @@ def test_detect_uses_frozen_inference_contract_and_filters_score_boundary(tmp_pa
     assert detector.model_name == "yolo26n"
     assert detector.model_version == "v2.5-warm-start"
     assert detector.threshold == 0.20
+
+
+def test_detect_converts_center_xywh_without_collapsing_reflection_boxes(tmp_path):
+    """Ultralytics 중심 좌표를 GME 좌상단 계약으로 바꾸되 복수 탐지는 보존한다."""
+    from gecko_vision_gate.gme_yolo_detector import build_yolo_detector
+
+    model = _Model(
+        _Result(
+            _Boxes(
+                xywh=[[50.0, 40.0, 20.0, 10.0], [80.0, 70.0, 8.0, 6.0]],
+                confidence=[0.90, 0.80],
+                class_ids=[0.0, 0.0],
+            )
+        )
+    )
+    detector = build_yolo_detector(
+        checkpoint=_checkpoint(tmp_path),
+        expected_sha256=V25_SHA,
+        score_threshold=0.20,
+        model_factory=lambda _path: model,
+    )
+
+    detections = detector.detect(np.zeros((100, 100, 3), dtype=np.uint8), 0.0)
+
+    assert [row.bbox_xywh for row in detections] == [
+        (40.0, 35.0, 20.0, 10.0),
+        (76.0, 67.0, 8.0, 6.0),
+    ]
 
 
 def test_detect_rejects_unexpected_class_in_single_class_checkpoint(tmp_path):
@@ -174,7 +202,7 @@ def test_v26_execution_identity_uses_the_full_frozen_contract():
     assert detector_identity(detector) == V26_IDENTITY
 
 
-def test_v25_legacy_identity_remains_unchanged():
+def test_corrected_v25_adapter_does_not_reuse_legacy_coordinate_identity():
     from gecko_vision_gate.gme_engine import detector_identity
     from gecko_vision_gate.gme_yolo_detector import YoloGMEAdapter
 
@@ -189,7 +217,28 @@ def test_v25_legacy_identity_remains_unchanged():
         device="mps",
     )
 
-    assert detector_identity(detector) == V25_PRODUCTION_IDENTITY
+    assert detector_identity(detector) != V25_PRODUCTION_IDENTITY
+    assert detector.execution_contract["bbox_coordinate_contract"] == "xywh-top-left-v1"
+
+
+def test_corrected_detection_reaches_tracker_as_top_left_normalized_bbox(tmp_path):
+    from gecko_vision_gate.gme_tracker import MultiGeckoTracker
+    from gecko_vision_gate.gme_yolo_detector import build_yolo_detector
+
+    detector = build_yolo_detector(
+        checkpoint=_checkpoint(tmp_path),
+        expected_sha256=V25_SHA,
+        score_threshold=0.20,
+        model_factory=lambda _path: _Model(
+            _Result(_Boxes(xywh=[[50.0, 40.0, 20.0, 10.0]], confidence=[0.9], class_ids=[0.0]))
+        ),
+    )
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    points = MultiGeckoTracker().update_anchor(detector.detect(frame, 0.0), frame.shape)
+
+    assert len(points) == 1
+    assert points[0].bbox_norm == pytest.approx((0.40, 0.35, 0.20, 0.10))
 
 
 def test_post_nms_suppresses_overlapping_lower_score_box(tmp_path):
@@ -219,6 +268,6 @@ def test_post_nms_suppresses_overlapping_lower_score_box(tmp_path):
     detections = detector.detect(np.zeros((120, 120, 3), dtype=np.uint8), 0.0)
 
     assert [(row.confidence, row.bbox_xywh) for row in detections] == [
-        (0.91, (50.0, 50.0, 20.0, 20.0)),
-        (0.70, (90.0, 90.0, 10.0, 10.0)),
+        (0.91, (40.0, 40.0, 20.0, 20.0)),
+        (0.70, (85.0, 85.0, 10.0, 10.0)),
     ]

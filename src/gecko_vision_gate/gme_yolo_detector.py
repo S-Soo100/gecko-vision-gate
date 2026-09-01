@@ -14,6 +14,9 @@ from .gme_contracts import Detection
 from .provenance import SCHEMA_VERSION, checkpoint_sha256
 
 
+YOLO_BBOX_COORDINATE_CONTRACT = "xywh-top-left-v1"
+
+
 class YoloGMEAdapter:
     def __init__(
         self,
@@ -76,6 +79,7 @@ class YoloGMEAdapter:
         self.max_detections = max_detections
         self.device = device
         self.post_nms_iou = post_nms_iou
+        self.bbox_coordinate_contract = YOLO_BBOX_COORDINATE_CONTRACT
         if uses_extended_contract:
             self.execution_contract = {
                 "schema": "gme-yolo-execution-v2",
@@ -92,9 +96,25 @@ class YoloGMEAdapter:
                 "analysis_fps": analysis_fps,
                 "temporal_window_frames": temporal_window_frames,
                 "temporal_min_positive_frames": temporal_min_positive_frames,
+                "bbox_coordinate_contract": YOLO_BBOX_COORDINATE_CONTRACT,
             }
-            canonical = json.dumps(self.execution_contract, sort_keys=True, separators=(",", ":"))
-            self.execution_identity = hashlib.sha256(canonical.encode()).hexdigest()
+        else:
+            # 좌표가 수정된 결과를 과거 center-xywh identity로 저장하지 않는다.
+            self.execution_contract = {
+                "schema": "gme-yolo-execution-v1",
+                "model_name": self.model_name,
+                "model_version": self.model_version,
+                "checkpoint_sha256": self.checkpoint_sha256,
+                "detector_schema_version": self.schema_version,
+                "raw_confidence": self.raw_confidence,
+                "score_threshold": self.threshold,
+                "image_size": self.image_size,
+                "model_nms_iou": self.nms_iou,
+                "max_detections": self.max_detections,
+                "bbox_coordinate_contract": YOLO_BBOX_COORDINATE_CONTRACT,
+            }
+        canonical = json.dumps(self.execution_contract, sort_keys=True, separators=(",", ":"))
+        self.execution_identity = hashlib.sha256(canonical.encode()).hexdigest()
 
     def detect(self, frame_bgr: np.ndarray, timestamp_sec: float) -> tuple[Detection, ...]:
         raw_results = self._model.predict(
@@ -119,7 +139,7 @@ class YoloGMEAdapter:
         if not (len(xywh_rows) == len(confidences) == len(class_ids)):
             raise ValueError("YOLO box, confidence, and class counts differ")
 
-        accepted: list[Detection] = []
+        accepted: list[tuple[float, tuple[float, float, float, float]]] = []
         for xywh, confidence, class_id in zip(xywh_rows, confidences, class_ids, strict=True):
             score = float(confidence)
             numeric_class_id = float(class_id)
@@ -129,22 +149,33 @@ class YoloGMEAdapter:
                 continue
             if len(xywh) != 4:
                 raise ValueError("YOLO xywh row must contain four values")
-            accepted.append(
-                Detection(
-                    timestamp_sec=timestamp_sec,
-                    bbox_xywh=tuple(float(value) for value in xywh),
-                    confidence=score,
-                    class_name="gecko",
-                )
-            )
-        ordered = sorted(accepted, key=lambda item: (-item.confidence, item.bbox_xywh))
+            accepted.append((score, tuple(float(value) for value in xywh)))
+        ordered = sorted(accepted, key=lambda item: (-item[0], item[1]))
         if self.post_nms_iou is None:
-            return tuple(ordered)
-        selected: list[Detection] = []
-        for candidate in ordered:
-            if all(_center_xywh_iou(candidate.bbox_xywh, kept.bbox_xywh) <= self.post_nms_iou for kept in selected):
-                selected.append(candidate)
-        return tuple(selected)
+            selected = ordered
+        else:
+            selected = []
+            for candidate in ordered:
+                if all(_center_xywh_iou(candidate[1], kept[1]) <= self.post_nms_iou for kept in selected):
+                    selected.append(candidate)
+        return tuple(
+            Detection(
+                timestamp_sec=timestamp_sec,
+                bbox_xywh=_center_xywh_to_top_left(center_xywh),
+                confidence=score,
+                class_name="gecko",
+            )
+            for score, center_xywh in selected
+        )
+
+
+def _center_xywh_to_top_left(
+    bbox: tuple[float, float, float, float],
+) -> tuple[float, float, float, float]:
+    """Ultralytics 중심 xywh를 GME의 좌상단 xywh 계약으로 변환한다."""
+
+    center_x, center_y, width, height = bbox
+    return center_x - width / 2, center_y - height / 2, width, height
 
 
 def _center_xywh_iou(
