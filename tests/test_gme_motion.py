@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from gecko_vision_gate.gme_contracts import TrackPoint
+from gecko_vision_gate import gme_motion
 import cv2
 import numpy as np
 
@@ -19,6 +20,50 @@ def _p(track: str, ts: float, x: float) -> TrackPoint:
 def test_track_motion_is_body_length_normalized():
     assert classify_track_motion(_p("g1", 0.0, 0.1), _p("g1", 1.0, 0.3), threshold_body_lengths=0.2) == "moving"
     assert classify_track_motion(_p("g1", 0.0, 0.1), _p("g1", 1.0, 0.105), threshold_body_lengths=0.2) == "static"
+
+
+def test_slow_motion_uses_centered_three_second_displacement():
+    points = tuple(
+        _p("g1", index / 10, 0.1 + 0.001 * index)
+        for index in range(61)
+    )
+    frames = tuple(
+        (point.timestamp_sec, {point.track_id: "static"}, False)
+        for point in points
+    )
+
+    promoted = gme_motion.promote_slow_motion(
+        frames,
+        points,
+        window_sec=3.0,
+        threshold_body_lengths=0.08,
+        max_track_gap_sec=0.2,
+    )
+
+    states = {round(timestamp, 1): track_states["g1"] for timestamp, track_states, _ in promoted}
+    assert states[3.0] == "moving"
+    assert aggregate_states(promoted, duration_sec=6.1).candidate_moving_sec_any_gecko > 0
+
+
+def test_slow_motion_does_not_promote_stationary_bbox_jitter():
+    points = tuple(
+        _p("g1", index / 10, 0.1 + (0.003 if index % 2 else -0.003))
+        for index in range(61)
+    )
+    frames = tuple(
+        (point.timestamp_sec, {point.track_id: "static"}, False)
+        for point in points
+    )
+
+    promoted = gme_motion.promote_slow_motion(
+        frames,
+        points,
+        window_sec=3.0,
+        threshold_body_lengths=0.08,
+        max_track_gap_sec=0.2,
+    )
+
+    assert all(track_states["g1"] == "static" for _, track_states, _ in promoted)
 
 
 def test_two_simultaneous_geckos_union_user_time_but_sum_internal_time():

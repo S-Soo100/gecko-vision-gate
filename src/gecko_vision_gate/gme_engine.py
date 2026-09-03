@@ -8,12 +8,18 @@ from pathlib import Path
 import cv2
 
 from .gme_contracts import ArtifactIdentity, Detector, GMEAnalysis, GMEConfig, TrackingQuality
-from .gme_motion import aggregate_states, classify_track_motion, detect_camera_motion, detect_exposure_change
+from .gme_motion import (
+    aggregate_states,
+    classify_track_motion,
+    detect_camera_motion,
+    detect_exposure_change,
+    promote_slow_motion,
+)
 from .gme_temporal import AnalysisClock, TemporalDetectionGate
 from .gme_tracker import MultiGeckoTracker, interpolate_short_gaps
 
 ENGINE_SCHEMA_VERSION = "gme-shadow-v1"
-ALGORITHM_VERSION = "gme-motion-v0"
+ALGORITHM_VERSION = "gme-motion-v1"
 
 
 def detector_identity(detector: Detector) -> str:
@@ -116,6 +122,13 @@ def analyze_clip(
         return GMEAnalysis("no_decodable_frames", 0.0, 0, 0, source_fps, (), (), 0, 0, 0, 0, 0, 0, TrackingQuality.empty(), identity)
     duration = max(last_timestamp + 1.0 / source_fps, decoded / source_fps)
     interpolated = interpolate_short_gaps(tuple(points), step_sec=1.0 / min(source_fps, config.analysis_fps), max_gap_sec=config.max_interpolation_gap_sec)
+    frame_states = promote_slow_motion(
+        tuple(frame_states),
+        tuple(points),
+        window_sec=config.slow_motion_window_sec,
+        threshold_body_lengths=config.moving_threshold_body_lengths,
+        max_track_gap_sec=config.slow_motion_max_track_gap_sec,
+    )
     summary = aggregate_states(tuple(frame_states), duration_sec=duration)
     provenance_counts = {name: 0.0 for name in ("observed", "tracked", "interpolated", "unknown")}
     step = 1.0 / min(source_fps, config.analysis_fps)

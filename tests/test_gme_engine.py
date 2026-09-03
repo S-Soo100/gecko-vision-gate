@@ -85,6 +85,7 @@ def test_v26_engine_analyzes_exact_10fps_grid_and_detects_every_selected_frame(m
     assert result.decoded_frame_count == 26
     assert result.analyzed_frame_count == 11
     assert detector.calls == [0.0, 0.12, 0.2, 0.32, 0.4, 0.52, 0.6, 0.72, 0.8, 0.92, 1.0]
+    assert result.artifact_identity.algorithm_version == "gme-motion-v1"
     assert cap.released is True
 
 

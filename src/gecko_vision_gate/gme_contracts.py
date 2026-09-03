@@ -134,6 +134,8 @@ class GMEConfig:
     detector_every_analysis_frame: bool = False
     max_interpolation_gap_sec: float = 1.0
     moving_threshold_body_lengths: float = 0.08
+    slow_motion_window_sec: float = 3.0
+    slow_motion_max_track_gap_sec: float = 0.25
     camera_motion_threshold_norm: float = 0.015
     tracker_confidence_floor: float = 0.35
     timestamp_overlay_height_ratio: float = 0.12
@@ -171,7 +173,12 @@ class GMEConfig:
             raise ValueError("interpolation gap must be in [0,1]")
         if not (0 <= self.tracker_confidence_floor <= 1):
             raise ValueError("invalid tracker confidence floor")
-        if self.moving_threshold_body_lengths < 0 or self.camera_motion_threshold_norm < 0:
+        if (
+            self.moving_threshold_body_lengths < 0
+            or not 0 < self.slow_motion_window_sec <= 10
+            or not 0 < self.slow_motion_max_track_gap_sec <= 1
+            or self.camera_motion_threshold_norm < 0
+        ):
             raise ValueError("motion thresholds must be non-negative")
 
 

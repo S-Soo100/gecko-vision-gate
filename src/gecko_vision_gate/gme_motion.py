@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
+from collections import defaultdict
 from dataclasses import dataclass
 
 import cv2
@@ -18,6 +20,65 @@ def classify_track_motion(previous: TrackPoint, current: TrackPoint, *, threshol
     body = max(float(np.hypot((pw + cw) / 2, (ph + ch) / 2)), 1e-9)
     displacement = float(np.hypot((cx + cw / 2) - (px + pw / 2), (cy + ch / 2) - (py + ph / 2)))
     return "moving" if displacement / body >= threshold_body_lengths else "static"
+
+
+def promote_slow_motion(
+    frames,
+    points: tuple[TrackPoint, ...],
+    *,
+    window_sec: float,
+    threshold_body_lengths: float,
+    max_track_gap_sec: float,
+):
+    """직전 프레임만으로 놓치는 느린 이동을 중심 시간창의 순이동으로 보완한다."""
+    if window_sec <= 0 or not frames or not points:
+        return tuple(frames)
+
+    by_track: dict[str, list[TrackPoint]] = defaultdict(list)
+    for point in points:
+        by_track[point.track_id].append(point)
+
+    moving_keys: set[tuple[str, float]] = set()
+    minimum_span = window_sec * 0.8
+    half_window = window_sec / 2
+    for track_id, track_points in by_track.items():
+        track_points.sort(key=lambda point: point.timestamp_sec)
+        segments: list[list[TrackPoint]] = []
+        for point in track_points:
+            if not segments or point.timestamp_sec - segments[-1][-1].timestamp_sec > max_track_gap_sec:
+                segments.append([point])
+            else:
+                segments[-1].append(point)
+        for segment in segments:
+            times = [point.timestamp_sec for point in segment]
+            for point in segment:
+                left_index = bisect_left(times, point.timestamp_sec - half_window)
+                right_index = bisect_right(times, point.timestamp_sec + half_window) - 1
+                if right_index <= left_index:
+                    continue
+                left = segment[left_index]
+                right = segment[right_index]
+                if right.timestamp_sec - left.timestamp_sec + 1e-9 < minimum_span:
+                    continue
+                if classify_track_motion(
+                    left,
+                    right,
+                    threshold_body_lengths=threshold_body_lengths,
+                ) == "moving":
+                    moving_keys.add((track_id, point.timestamp_sec))
+
+    promoted = []
+    for timestamp, track_states, camera_motion in frames:
+        updated = {
+            track_id: (
+                "moving"
+                if state == "static" and (track_id, timestamp) in moving_keys
+                else state
+            )
+            for track_id, state in track_states.items()
+        }
+        promoted.append((timestamp, updated, camera_motion))
+    return tuple(promoted)
 
 
 def detect_camera_motion(previous_gray, current_gray, *, threshold_norm: float, overlay_height_ratio: float = 0.12) -> bool:
